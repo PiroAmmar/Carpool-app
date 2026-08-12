@@ -1,0 +1,36 @@
+@import "tailwindcss";
+
+/*
+  Carpool Hub design tokens — dashboard instrument cluster theme.
+  See Carpool_Hub_Project_Plan.md, "Frontend Design System" section,
+  for the reasoning behind these choices.
+*/
+:root {
+  --color-asphalt: #0b0d10;
+  --color-panel: #16191d;
+  --color-chrome: #c9cdd3;
+  --color-warmwhite: #f2f1ed;
+  --color-route-green: #5ea829;
+  --color-signal-amber: #e0a526;
+
+  /* Shared easing curve for all state-change motion — fast start,
+     slow settle. Used by Framer Motion transitions from Phase 2 on. */
+  --ease-instrument: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@theme inline {
+  --color-asphalt: var(--color-asphalt);
+  --color-panel: var(--color-panel);
+  --color-chrome: var(--color-chrome);
+  --color-warmwhite: var(--color-warmwhite);
+  --color-route-green: var(--color-route-green);
+  --color-signal-amber: var(--color-signal-amber);
+
+  --font-sans: var(--font-display);
+  --font-mono: var(--font-data);
+}
+
+body {
+  background: var(--color-asphalt);
+  color: var(--color-warmwhite);
+}
