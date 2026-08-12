@@ -37,3 +37,4 @@ This File contains a growing ruleset that improves over time.
 3. [PROCESS] Never use destructive flags like `--overwrite` for scaffolding commands (e.g., `create-vite`) in an existing directory, because it deletes essential documentation and project configuration files.
 4. [CODE] Always treat performance as top priority — use direct DOM manipulation/refs instead of React state for high-frequency events (like mousemove, scroll, rAF), avoid heavy CSS blur filters over large viewport areas, and ensure 60+ FPS hardware acceleration.
 5. [CODE] Don't add comments for telling about updates in the codebase, only add comments for explaining features BRIEF.
+6. [STYLE] Avoid AI-SLOP. Never use filler phrases, sycophantic agreement, or generic AI intros/outros. Be direct and concise.

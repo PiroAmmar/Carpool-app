@@ -1,8 +1,9 @@
 interface RouteDisplayProps {
   stops: string[];
+  direction?: string | null;
 }
 
-export function RouteDisplay({ stops }: RouteDisplayProps) {
+export function RouteDisplay({ stops, direction }: RouteDisplayProps) {
   if (!stops || stops.length === 0) return null;
 
   return (
@@ -17,16 +18,23 @@ export function RouteDisplay({ stops }: RouteDisplayProps) {
         aria-hidden
       />
 
-      <p className="text-center font-mono text-[10px] tracking-widest text-warmwhite/30 uppercase mb-2">
-        Current Route
+      <p className="text-center font-mono text-xs font-semibold tracking-widest text-warmwhite/70 uppercase mb-2">
+        {direction ? 'Route Heading' : 'Current Route'}
       </p>
 
-      <div className="flex items-center justify-center gap-1.5 flex-wrap text-sm text-warmwhite/60">
+      {direction && (
+        <p className="text-center text-sm font-bold text-accent-red mb-3 break-words px-2">
+          {direction.replace(/->/g, '→')}
+        </p>
+      )}
+
+      {/* flex-wrap and break-words for hardening against extremely long strings */}
+      <div className="flex items-center justify-center gap-2 flex-wrap text-sm text-warmwhite/90 px-2 break-words font-medium">
         {stops.map((stop, i) => (
-          <span key={i} className="flex items-center gap-1.5">
-            <span>{stop}</span>
+          <span key={i} className="flex items-center gap-2 min-w-0">
+            <span className="break-words line-clamp-2">{stop}</span>
             {i < stops.length - 1 && (
-              <span className="text-chrome/25 text-xs">→</span>
+              <span className="text-white text-xs flex-shrink-0 opacity-80">→</span>
             )}
           </span>
         ))}

@@ -25,7 +25,8 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${origin}/login?error=auth_failed&reason=${reason}`);
   }
 
-  const email = data.session.user.email ?? "";
+  const user = data.session.user;
+  const email = user.email ?? "";
   const allowedDomain = process.env.ALLOWED_EMAIL_DOMAIN ?? "nu.edu.pk";
 
   if (!email.toLowerCase().endsWith(`@${allowedDomain}`)) {
@@ -33,6 +34,22 @@ export async function GET(request: Request) {
     // them to login with an explanatory error.
     await supabase.auth.signOut();
     return NextResponse.redirect(`${origin}/login?error=wrong_domain`);
+  }
+
+  // Upsert the user into the public.users table.
+  // This is required because the bookings table has a foreign key to public.users.
+  const fullName = user.user_metadata?.full_name ?? user.user_metadata?.name ?? null;
+  const { error: upsertError } = await supabase
+    .from('users')
+    .upsert({
+      id: user.id,
+      email: email,
+      full_name: fullName,
+      role: 'passenger' // Default role
+    }, { onConflict: 'id' });
+
+  if (upsertError) {
+    console.error("[auth/callback] user upsert failed:", upsertError.message);
   }
 
   return NextResponse.redirect(`${origin}/dashboard`);

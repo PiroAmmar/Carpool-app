@@ -9,8 +9,8 @@ function WhatsAppIcon() {
 export function ContactCard() {
   return (
     <div className="mt-8 pt-6 border-t border-chrome/10">
-      <p className="font-mono text-[10px] tracking-widest text-warmwhite/30 uppercase mb-3">
-        Contact Driver
+      <p className="font-mono text-xs font-semibold tracking-widest text-warmwhite/70 uppercase mb-3">
+        Contact Me
       </p>
       <div className="flex items-center justify-between gap-4">
         <div>
@@ -21,7 +21,7 @@ export function ContactCard() {
           href="https://wa.me/923342121401"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex-shrink-0 flex items-center gap-2 rounded-lg border border-route-green/30 bg-route-green/10 px-3 py-2 text-sm text-route-green transition-colors hover:bg-route-green/20 active:scale-95"
+          className="flex-shrink-0 flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm font-medium text-emerald-500 transition-colors hover:bg-emerald-500/20 active:scale-95"
         >
           <WhatsAppIcon />
           WhatsApp

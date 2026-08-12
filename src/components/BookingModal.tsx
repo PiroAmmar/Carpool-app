@@ -46,19 +46,19 @@ export function BookingModal({ seatNumber, onConfirm, onCancel }: BookingModalPr
         aria-hidden
       />
 
-      {/* Bottom-sheet modal */}
+      {/* Centered modal */}
       <motion.div
         key="modal"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: 12 }}
+        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 10 }}
         transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-        className="fixed bottom-0 left-0 right-0 z-50 mx-auto max-w-sm px-4 pb-8"
+        className="fixed inset-0 z-50 flex items-center justify-center p-4"
         role="dialog"
         aria-modal
         aria-label={`Book seat ${seatNumber}`}
       >
-        <div className="rounded-2xl border border-chrome/15 bg-panel px-6 py-6 shadow-2xl">
+        <div className="w-full max-w-sm rounded-2xl border border-chrome/15 bg-panel px-6 py-6 shadow-2xl">
           {/* Header */}
           <div className="flex items-start justify-between mb-5">
             <div>
@@ -90,7 +90,7 @@ export function BookingModal({ seatNumber, onConfirm, onCancel }: BookingModalPr
               id="pickup-location"
               value={pickup}
               onChange={e => setPickup(e.target.value)}
-              placeholder="e.g. DHA Phase 6, Gate 3"
+              placeholder="e.g. Fivestar"
               autoComplete="off"
               className="w-full rounded-lg border border-chrome/15 bg-asphalt px-4 py-3 text-sm text-warmwhite placeholder:text-warmwhite/25 outline-none focus:border-chrome/35 transition-colors"
             />
@@ -108,7 +108,7 @@ export function BookingModal({ seatNumber, onConfirm, onCancel }: BookingModalPr
                 disabled={!pickup.trim()}
                 whileTap={{ scale: 0.97 }}
                 transition={{ duration: 0.12, ease: [0.16, 1, 0.3, 1] }}
-                className="flex-1 rounded-lg bg-route-green/90 px-4 py-2.5 text-sm font-medium text-asphalt hover:bg-route-green transition-colors disabled:opacity-35 disabled:cursor-not-allowed"
+                className="flex-1 rounded-lg bg-accent-red/90 px-4 py-2.5 text-sm font-bold text-white hover:bg-accent-red transition-colors disabled:opacity-35 disabled:cursor-not-allowed"
               >
                 Confirm →
               </motion.button>

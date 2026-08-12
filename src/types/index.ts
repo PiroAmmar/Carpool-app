@@ -4,6 +4,7 @@ export interface Trip {
   trip_time: string;
   seats_total: number;
   route_id: string | null;
+  direction: string | null;
   rate: number | null;
   status: 'scheduled' | 'cancelled' | 'completed';
 }

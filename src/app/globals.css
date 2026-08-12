@@ -10,7 +10,7 @@
   --color-panel: #16191d;
   --color-chrome: #c9cdd3;
   --color-warmwhite: #f2f1ed;
-  --color-route-green: #5ea829;
+  --color-accent-red: #ef4444;
   --color-signal-amber: #e0a526;
 
   /* Shared easing curve for all state-change motion — fast start,
@@ -23,7 +23,7 @@
   --color-panel: var(--color-panel);
   --color-chrome: var(--color-chrome);
   --color-warmwhite: var(--color-warmwhite);
-  --color-route-green: var(--color-route-green);
+  --color-accent-red: var(--color-accent-red);
   --color-signal-amber: var(--color-signal-amber);
 
   --font-sans: var(--font-display);
