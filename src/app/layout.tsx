@@ -19,8 +19,8 @@ const dataFont = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Carpool Hub",
-  description: "Seat booking for the campus carpool",
+  title: "Ammar FAST carpool",
+  description: "Seat booking for the FAST campus carpool — Syed Ammar Ali",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
