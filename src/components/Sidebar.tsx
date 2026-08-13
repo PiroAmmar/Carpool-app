@@ -1,22 +1,48 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { motion, AnimatePresence } from 'framer-motion';
+import { WhatsAppModal } from '@/components/WhatsAppModal';
 import type { Trip } from '@/types';
 
 interface SidebarProps {
   userName: string;
+  userWhatsApp?: string | null;
+  currentUserId?: string;
   trips: Trip[];
   activeTripId: string | null; // UUID
   onSelectTrip?: (tripId: string) => void;
+  isAdmin?: boolean;
 }
 
-export function Sidebar({ userName, trips, activeTripId, onSelectTrip }: SidebarProps) {
+export function Sidebar({ userName, userWhatsApp, currentUserId, trips, activeTripId, onSelectTrip, isAdmin }: SidebarProps) {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const [isOpen, setIsOpen] = useState(false);
+  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
+  const [whatsappNum, setWhatsappNum] = useState<string | null>(userWhatsApp || null);
+
+  useEffect(() => {
+    setWhatsappNum(userWhatsApp || null);
+  }, [userWhatsApp]);
+
+  async function handleSaveWhatsApp(newNum: string) {
+    if (!currentUserId) return;
+    setWhatsappNum(newNum);
+
+    const { error } = await supabase
+      .from('users')
+      .update({ whatsapp: newNum, phone: newNum })
+      .eq('id', currentUserId);
+
+    if (error) {
+      console.error('[sidebar] whatsapp update failed:', error.message);
+    } else {
+      setIsWhatsAppModalOpen(false);
+    }
+  }
 
   async function handleLogout() {
     await supabase.auth.signOut();
@@ -43,35 +69,71 @@ export function Sidebar({ userName, trips, activeTripId, onSelectTrip }: Sidebar
     }
   }
 
+  const scheduledTrips = useMemo(
+    () => trips.filter((t) => t.status === 'scheduled'),
+    [trips]
+  );
+
   const sidebarContent = (
     <div className="flex flex-col h-full bg-panel w-64 md:w-72 flex-shrink-0 z-40">
       {/* Top Header - User Welcome */}
-      <div className="p-6 border-b border-white/5">
-        <h1 className="text-lg font-semibold text-warmwhite truncate">
-          Welcome back
-        </h1>
-        <p className="mt-0.5 text-xs text-warmwhite/40 font-mono truncate">
-          {userName}
-        </p>
+      <div className="p-6 border-b border-white/5 flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-lg font-semibold text-warmwhite truncate">
+              Welcome back
+            </h1>
+            <p className="mt-0.5 text-xs text-warmwhite/40 font-mono truncate">
+              {userName}
+            </p>
+          </div>
+          {isAdmin && (
+            <button
+              onClick={() => {
+                setIsOpen(false);
+                router.push('/admin');
+              }}
+              className="flex-shrink-0 ml-2 px-2.5 py-1 rounded border border-accent-red/30 bg-accent-red/10 text-[11px] font-mono font-semibold text-accent-red hover:bg-accent-red/20 transition-colors"
+            >
+              Admin Panel
+            </button>
+          )}
+        </div>
+
+        {/* WhatsApp Configuration Button */}
+        <button
+          onClick={() => setIsWhatsAppModalOpen(true)}
+          className="w-full flex items-center justify-between rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-400 hover:bg-emerald-500/20 transition-colors font-mono"
+        >
+          <span className="truncate">
+            {whatsappNum ? `WA: ${whatsappNum}` : 'Configure WhatsApp'}
+          </span>
+          <span className="text-[10px] uppercase font-bold underline opacity-80 flex-shrink-0 ml-1">
+            {whatsappNum ? 'Edit' : '+ Set'}
+          </span>
+        </button>
       </div>
 
       {/* Trips List */}
       <div className="flex-1 overflow-y-auto py-4 px-3">
         <p className="font-mono text-[10px] tracking-widest text-warmwhite/30 uppercase mb-3 px-3">
-          Upcoming Trips
+          Scheduled Trips
         </p>
-        
-        {trips.length === 0 ? (
+
+        {scheduledTrips.length === 0 ? (
           <div className="px-3 py-4 text-xs text-warmwhite/40">
             No scheduled trips.
           </div>
         ) : (
           <div className="flex flex-col gap-1">
-            {trips.map(trip => {
+            {scheduledTrips.map((trip, i) => {
               const isActive = trip.id === activeTripId;
               return (
-                <button
+                <motion.button
                   key={trip.id}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.25, ease: [0.23, 1, 0.32, 1], delay: Math.min(i * 0.04, 0.32) }}
                   onClick={() => {
                     if (onSelectTrip) {
                       onSelectTrip(trip.id);
@@ -80,19 +142,26 @@ export function Sidebar({ userName, trips, activeTripId, onSelectTrip }: Sidebar
                     }
                     setIsOpen(false);
                   }}
-                  className={`flex flex-col items-start px-3 py-2.5 rounded-lg transition-colors text-left ${
-                    isActive 
-                      ? 'bg-accent-red/10 text-accent-red' 
+                  className={`relative flex flex-col items-start pl-4 pr-3 py-2.5 rounded-lg transition-colors duration-160 text-left active:scale-[0.98] ${isActive
+                      ? 'bg-accent-red/10 text-accent-red'
                       : 'text-warmwhite/60 hover:bg-white/5 hover:text-warmwhite'
-                  }`}
+                    }`}
                 >
+                  {/* Active-row accent rail — spatial indicator, not a color-only cue */}
+                  {isActive && (
+                    <motion.span
+                      layoutId="sidebar-active-rail"
+                      transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+                      className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full bg-accent-red"
+                    />
+                  )}
                   <span className={`text-sm font-medium truncate w-full ${isActive ? 'text-accent-red' : 'text-warmwhite/80'}`}>
                     {formatTripDate(trip.trip_date)}
                   </span>
                   <span className="text-xs font-mono opacity-75 mt-0.5">
                     {formatTripTime(trip.trip_date, trip.trip_time)}
                   </span>
-                </button>
+                </motion.button>
               );
             })}
           </div>
@@ -103,7 +172,7 @@ export function Sidebar({ userName, trips, activeTripId, onSelectTrip }: Sidebar
       <div className="p-4 border-t border-white/5">
         <button
           onClick={handleLogout}
-          className="w-full flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-accent-red hover:bg-accent-red/10 transition-colors"
+          className="w-full flex items-center justify-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium text-accent-red transition-[background-color,transform] duration-160 hover:bg-accent-red/10 active:scale-[0.97]"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
@@ -119,7 +188,7 @@ export function Sidebar({ userName, trips, activeTripId, onSelectTrip }: Sidebar
   return (
     <>
       {/* Universal Toggle Button */}
-      <button 
+      <button
         onClick={() => setIsOpen(true)}
         className="fixed top-4 left-4 z-30 p-2 rounded-md bg-panel border border-chrome/10 text-warmwhite/80 hover:text-warmwhite shadow-lg transition-transform active:scale-95"
         aria-label="Open menu"
@@ -135,26 +204,37 @@ export function Sidebar({ userName, trips, activeTripId, onSelectTrip }: Sidebar
         {isOpen && (
           <>
             {/* Backdrop */}
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
               onClick={() => setIsOpen(false)}
-              className="fixed inset-0 bg-asphalt/80 backdrop-blur-sm z-40"
+              className="fixed inset-0 bg-asphalt/70 z-40"
+              style={{ willChange: 'opacity' }}
             />
             {/* Drawer */}
             <motion.div
               initial={{ x: '-100%' }}
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              transition={{ type: 'spring', damping: 30, stiffness: 280, mass: 0.8 }}
               className="fixed inset-y-0 left-0 z-50 shadow-2xl"
+              style={{ willChange: 'transform' }}
             >
               {sidebarContent}
             </motion.div>
           </>
         )}
       </AnimatePresence>
+
+      {isWhatsAppModalOpen && (
+        <WhatsAppModal
+          initialNumber={whatsappNum}
+          onSave={handleSaveWhatsApp}
+          onCancel={() => setIsWhatsAppModalOpen(false)}
+        />
+      )}
     </>
   );
 }

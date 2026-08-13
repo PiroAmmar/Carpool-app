@@ -15,10 +15,11 @@ export function HudBar({ rate }: HudBarProps) {
       </span>
       <div className="flex items-center gap-3">
         <motion.span
-          className="h-1.5 w-1.5 rounded-full bg-accent-red"
-          animate={{ opacity: [0.35, 1, 0.35] }}
-          transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
+          className="h-2 w-2 rounded-full bg-emerald-400"
+          animate={{ opacity: [0.4, 1, 0.4], scale: [0.85, 1, 0.85] }}
+          transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
           aria-hidden
+          title="Online"
         />
       </div>
     </header>

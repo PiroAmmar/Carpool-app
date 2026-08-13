@@ -16,6 +16,11 @@
   /* Shared easing curve for all state-change motion — fast start,
      slow settle. Used by Framer Motion transitions from Phase 2 on. */
   --ease-instrument: cubic-bezier(0.16, 1, 0.3, 1);
+  /* Stronger curves — built-in CSS eases read as weak/generic.
+     out: entries/reveals. in-out: on-screen movement. drawer: sidebar. */
+  --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out-strong: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 @theme inline {
@@ -33,4 +38,48 @@
 body {
   background: var(--color-asphalt);
   color: var(--color-warmwhite);
+}
+
+/* Fixed grain overlay — physical instrument-panel texture, not decoration.
+   pointer-events-none + fixed so it never repaints on scroll (perf guardrail). */
+.grain-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+  opacity: 0.035;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  transform: translateZ(0);
+}
+
+/* On mobile devices, SVG feTurbulence + mix-blend-mode overlay causes severe GPU compositing lag on low-end SOCs. */
+@media (max-width: 768px) {
+  .grain-overlay {
+    display: none;
+  }
+}
+
+/* Double-bezel shell — nested outer/inner radii, concentric by construction. */
+.bezel-shell {
+  border-radius: 1.75rem;
+  padding: 0.375rem;
+  background: rgba(201, 205, 211, 0.04);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  transform: translateZ(0);
+}
+.bezel-core {
+  border-radius: calc(1.75rem - 0.375rem);
+  background: var(--color-panel);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.03);
+  transform: translateZ(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

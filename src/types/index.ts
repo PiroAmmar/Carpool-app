@@ -27,9 +27,4 @@ export interface Route {
   is_preset: boolean;
 }
 
-export interface Settings {
-  id: number;
-  rate: number | null;
-}
-
 export type SeatStatus = 'available' | 'pending' | 'approved' | 'mine-pending';
