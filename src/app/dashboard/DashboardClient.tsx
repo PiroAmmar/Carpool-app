@@ -158,32 +158,44 @@ export function DashboardClient({ trip, initialBookings, route, currentUserId, u
   return (
     <div className="flex flex-col flex-1 pb-6">
 
-      {/* Rate Display */}
+      {/* Rate Display — typography-driven, no frosted box per task.md */}
       {rate !== null && (
-        <div className="mb-6 mt-4 flex flex-col items-center text-center py-2">
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+          className="mb-6 mt-4 flex flex-col items-center text-center py-2"
+        >
           <p className="text-xs text-warmwhite/50 tracking-widest uppercase font-semibold">Trip Rate</p>
           <p className="text-4xl font-mono font-bold text-white mt-1 tracking-tight">
             <span className="text-xl text-warmwhite/60 font-sans tracking-normal align-top mr-1">Rs.</span>
             {rate}
           </p>
-        </div>
+        </motion.div>
       )}
 
-      {/* Seat map */}
-      <div className="mt-2">
-        <SeatMap
-          bookings={activeBookings}
-          currentUserId={currentUserId}
-          seatsTotal={seatsTotal}
-        />
+      {/* Seat map — double-bezel: outer shell (machined tray) + inner core */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.45, ease: [0.23, 1, 0.32, 1], delay: 0.05 }}
+        className="mt-2 bezel-shell"
+      >
+        <div className="bezel-core py-8 px-4">
+          <SeatMap
+            bookings={activeBookings}
+            currentUserId={currentUserId}
+            seatsTotal={seatsTotal}
+          />
 
-        {/* Seat count readout — monospace like a dashboard odometer */}
-        <p className="mt-4 text-center font-mono text-sm text-warmwhite/50 bg-chrome/5 py-1.5 px-4 rounded-full w-max mx-auto border border-chrome/10">
-          {trip
-            ? `${seatsOpen} / ${seatsTotal} seats open`
-            : 'No trip scheduled'}
-        </p>
-      </div>
+          {/* Seat count readout — monospace like a dashboard odometer */}
+          <p className="mt-6 text-center font-mono text-sm text-warmwhite/60 bg-chrome/5 py-1.5 px-4 rounded-full w-max mx-auto border border-chrome/10">
+            {trip
+              ? `${seatsOpen} / ${seatsTotal} seats open`
+              : 'No trip scheduled'}
+          </p>
+        </div>
+      </motion.div>
 
       {/* Route display */}
       {route && <RouteDisplay stops={route.stops} direction={trip?.direction} />}
@@ -191,7 +203,7 @@ export function DashboardClient({ trip, initialBookings, route, currentUserId, u
       {/* Trip info */}
       {trip ? (
         <div className="mt-12 mb-4 flex flex-col items-center text-center">
-          <p className="font-mono text-xs tracking-widest text-warmwhite/40 uppercase mb-1">
+          <p className="font-mono text-xs tracking-widest text-warmwhite/70 uppercase mb-1">
             Next trip
           </p>
           <p className="text-lg font-medium text-warmwhite/90">
@@ -235,10 +247,14 @@ export function DashboardClient({ trip, initialBookings, route, currentUserId, u
                 <motion.button
                   onClick={handleBookClick}
                   whileTap={{ scale: 0.97 }}
-                  transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
-                  className="w-full rounded-xl px-4 py-4 text-sm font-bold tracking-wide transition-colors bg-accent-red/90 text-white hover:bg-accent-red shadow-lg shadow-accent-red/20 uppercase"
+                  transition={{ duration: 0.16, ease: [0.23, 1, 0.32, 1] }}
+                  className="group w-full flex items-center justify-between rounded-xl pl-5 pr-2 py-2 text-sm font-bold tracking-wide bg-accent-red/90 text-white hover:bg-accent-red shadow-lg shadow-accent-red/20 uppercase"
                 >
                   Book a seat
+                  {/* Button-in-button trailing icon — nested circular wrapper */}
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-black/15 transition-transform duration-160 ease-out group-hover:translate-x-0.5 group-active:scale-95">
+                    →
+                  </span>
                 </motion.button>
               ) : (
                 <div className="w-full rounded-xl border border-chrome/20 bg-chrome/10 px-4 py-4 text-sm text-warmwhite/60 text-center font-medium">
@@ -247,9 +263,9 @@ export function DashboardClient({ trip, initialBookings, route, currentUserId, u
               )
             ) : (
               <motion.div
-                initial={{ opacity: 0, scale: 0.97 }}
+                initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                transition={{ type: 'spring', duration: 0.5, bounce: 0.2 }}
                 className={`w-full rounded-2xl border px-5 py-4 text-left shadow-2xl ${
                   myBooking?.status === 'approved'
                     ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-400'

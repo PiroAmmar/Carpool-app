@@ -58,7 +58,8 @@ export function BookingModal({ seatNumber, onConfirm, onCancel }: BookingModalPr
         aria-modal
         aria-label={`Book seat ${seatNumber}`}
       >
-        <div className="w-full max-w-sm rounded-2xl border border-chrome/15 bg-panel px-6 py-6 shadow-2xl">
+        <div className="w-full max-w-sm bezel-shell shadow-2xl">
+        <div className="bezel-core px-6 py-6">
           {/* Header */}
           <div className="flex items-start justify-between mb-5">
             <div>
@@ -92,14 +93,14 @@ export function BookingModal({ seatNumber, onConfirm, onCancel }: BookingModalPr
               onChange={e => setPickup(e.target.value)}
               placeholder="e.g. Fivestar"
               autoComplete="off"
-              className="w-full rounded-lg border border-chrome/15 bg-asphalt px-4 py-3 text-sm text-warmwhite placeholder:text-warmwhite/25 outline-none focus:border-chrome/35 transition-colors"
+              className="w-full rounded-lg border border-chrome/15 bg-asphalt px-4 py-3 text-sm text-warmwhite placeholder:text-warmwhite/25 outline-none transition-[border-color] duration-160 focus:border-chrome/35"
             />
 
             <div className="flex gap-3 mt-4">
               <button
                 type="button"
                 onClick={onCancel}
-                className="flex-1 rounded-lg border border-chrome/15 px-4 py-2.5 text-sm text-warmwhite/55 hover:text-warmwhite/80 transition-colors"
+                className="flex-1 rounded-full border border-chrome/15 px-4 py-2.5 text-sm text-warmwhite/55 hover:text-warmwhite/80 transition-colors duration-160 active:scale-[0.97]"
               >
                 Cancel
               </button>
@@ -107,13 +108,17 @@ export function BookingModal({ seatNumber, onConfirm, onCancel }: BookingModalPr
                 type="submit"
                 disabled={!pickup.trim()}
                 whileTap={{ scale: 0.97 }}
-                transition={{ duration: 0.12, ease: [0.16, 1, 0.3, 1] }}
-                className="flex-1 rounded-lg bg-accent-red/90 px-4 py-2.5 text-sm font-bold text-white hover:bg-accent-red transition-colors disabled:opacity-35 disabled:cursor-not-allowed"
+                transition={{ duration: 0.16, ease: [0.23, 1, 0.32, 1] }}
+                className="group flex-1 flex items-center justify-between rounded-full bg-accent-red/90 pl-4 pr-1.5 py-1.5 text-sm font-bold text-white hover:bg-accent-red transition-colors disabled:opacity-35 disabled:cursor-not-allowed"
               >
-                Confirm →
+                Confirm
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-black/15 transition-transform duration-160 ease-out group-hover:translate-x-0.5">
+                  →
+                </span>
               </motion.button>
             </div>
           </form>
+        </div>
         </div>
       </motion.div>
     </AnimatePresence>

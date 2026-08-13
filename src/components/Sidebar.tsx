@@ -67,11 +67,14 @@ export function Sidebar({ userName, trips, activeTripId, onSelectTrip }: Sidebar
           </div>
         ) : (
           <div className="flex flex-col gap-1">
-            {trips.map(trip => {
+            {trips.map((trip, i) => {
               const isActive = trip.id === activeTripId;
               return (
-                <button
+                <motion.button
                   key={trip.id}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.25, ease: [0.23, 1, 0.32, 1], delay: Math.min(i * 0.04, 0.32) }}
                   onClick={() => {
                     if (onSelectTrip) {
                       onSelectTrip(trip.id);
@@ -80,19 +83,27 @@ export function Sidebar({ userName, trips, activeTripId, onSelectTrip }: Sidebar
                     }
                     setIsOpen(false);
                   }}
-                  className={`flex flex-col items-start px-3 py-2.5 rounded-lg transition-colors text-left ${
-                    isActive 
-                      ? 'bg-accent-red/10 text-accent-red' 
+                  className={`relative flex flex-col items-start pl-4 pr-3 py-2.5 rounded-lg transition-colors duration-160 text-left active:scale-[0.98] ${
+                    isActive
+                      ? 'bg-accent-red/10 text-accent-red'
                       : 'text-warmwhite/60 hover:bg-white/5 hover:text-warmwhite'
                   }`}
                 >
+                  {/* Active-row accent rail — spatial indicator, not a color-only cue */}
+                  {isActive && (
+                    <motion.span
+                      layoutId="sidebar-active-rail"
+                      transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+                      className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full bg-accent-red"
+                    />
+                  )}
                   <span className={`text-sm font-medium truncate w-full ${isActive ? 'text-accent-red' : 'text-warmwhite/80'}`}>
                     {formatTripDate(trip.trip_date)}
                   </span>
                   <span className="text-xs font-mono opacity-75 mt-0.5">
                     {formatTripTime(trip.trip_date, trip.trip_time)}
                   </span>
-                </button>
+                </motion.button>
               );
             })}
           </div>
@@ -103,7 +114,7 @@ export function Sidebar({ userName, trips, activeTripId, onSelectTrip }: Sidebar
       <div className="p-4 border-t border-white/5">
         <button
           onClick={handleLogout}
-          className="w-full flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-accent-red hover:bg-accent-red/10 transition-colors"
+          className="w-full flex items-center justify-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium text-accent-red transition-[background-color,transform] duration-160 hover:bg-accent-red/10 active:scale-[0.97]"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
