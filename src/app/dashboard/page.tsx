@@ -11,67 +11,77 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  /* ── Upsert User to public.users ────────────────────────────── */
-  // Fixes the foreign key issue without requiring the user to logout/login
-  const fullName = user.user_metadata?.full_name ?? user.user_metadata?.name ?? null;
-  const { error: upsertError } = await supabase.from('users').upsert({
-    id: user.id,
-    email: user.email!,
-    full_name: fullName,
-  }, { onConflict: 'id' });
-  if (upsertError) console.error('[dashboard] user upsert failed:', upsertError.message);
-
-  /* ── Get all upcoming scheduled trips ──────────────── */
   const today = new Date().toISOString().split('T')[0];
+  const fullName = user.user_metadata?.full_name ?? user.user_metadata?.name ?? null;
 
-  const { data: trips, error: tripsError } = await supabase
-    .from('trips')
-    .select('*')
-    .eq('status', 'scheduled')
-    .gte('trip_date', today)
-    .order('trip_date', { ascending: true })
-    .order('trip_time', { ascending: true });
+  /* ── Batch 1: Parallelize User Upsert, Trips Query, Settings Query, & SearchParams ── */
+  const [
+    _upsertRes,
+    tripsRes,
+    settingsRes,
+    resolvedSearchParams,
+  ] = await Promise.all([
+    // Non-blocking upsert to ensure user record exists
+    Promise.resolve(
+      supabase
+        .from('users')
+        .upsert({ id: user.id, email: user.email!, full_name: fullName }, { onConflict: 'id' })
+    ).catch(err => ({ error: err })),
 
-  if (tripsError) console.error('[dashboard] trips query failed:', tripsError.code, tripsError.message);
-
-  /* ── Resolve searchParams to find active trip ────────────────── */
-  // Next 15 requires await on searchParams, Next 14 does not. This pattern works for both if we treat it carefully,
-  // but standard Next.js approach is just awaiting it in 15. Let's safely resolve it.
-  const resolvedSearchParams = await props.searchParams;
-  const queryTripId = resolvedSearchParams?.tripId as string | undefined;
-
-  const activeTripId = queryTripId || (trips && trips.length > 0 ? trips[0].id : null);
-  const activeTrip = trips?.find((t) => t.id === activeTripId) || null;
-
-  /* ── Bookings for active trip ────────────────── */
-  const { data: bookings } = activeTrip
-    ? await supabase
-        .from('bookings')
-        .select('*')
-        .eq('trip_id', activeTrip.id)
-    : { data: [] };
-
-  /* ── Route for active trip ──────────────────────────────────── */
-  let route: Route | null = null;
-  if (activeTrip?.route_id) {
-    const { data } = await supabase
-      .from('routes')
+    // Scheduled upcoming trips
+    supabase
+      .from('trips')
       .select('*')
-      .eq('id', activeTrip.route_id)
-      .maybeSingle();
-    route = data;
+      .eq('status', 'scheduled')
+      .gte('trip_date', today)
+      .order('trip_date', { ascending: true })
+      .order('trip_time', { ascending: true }),
+
+    // Global rate settings
+    supabase
+      .from('settings')
+      .select('rate')
+      .eq('id', 1)
+      .maybeSingle(),
+
+    // Search parameters resolution
+    props.searchParams,
+  ]);
+
+  const trips = (tripsRes.data as Trip[]) ?? [];
+  if (tripsRes.error) {
+    console.error('[dashboard] trips query failed:', tripsRes.error.code, tripsRes.error.message);
   }
 
-  /* ── Rate: prefer trip-level rate, fall back to global settings ── */
-  const tripRate = (activeTrip as (Trip & { rate?: number }) | null)?.rate ?? null;
-  const { data: settings } = await supabase
-    .from('settings')
-    .select('rate')
-    .eq('id', 1)
-    .maybeSingle();
-  const rate = tripRate ?? settings?.rate ?? null;
+  const queryTripId = resolvedSearchParams?.tripId as string | undefined;
+  const activeTripId = queryTripId || (trips && trips.length > 0 ? trips[0].id : null);
+  const activeTrip = trips.find((t: Trip) => t.id === activeTripId) || null;
 
-  /* ── Display name from Google OAuth or email ────────────────── */
+  /* ── Batch 2: Parallelize Bookings & Route queries for active trip ── */
+  const [bookingsRes, routeRes] = await Promise.all([
+    activeTrip
+      ? supabase
+          .from('bookings')
+          .select('*')
+          .eq('trip_id', activeTrip.id)
+      : Promise.resolve({ data: [] }),
+    activeTrip?.route_id
+      ? supabase
+          .from('routes')
+          .select('*')
+          .eq('id', activeTrip.route_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+
+  const bookings = (bookingsRes.data as Booking[]) ?? [];
+  const route = (routeRes.data as Route | null) ?? null;
+
+  /* ── Rate calculation ── */
+  const tripRate = (activeTrip as (Trip & { rate?: number }) | null)?.rate ?? null;
+  const rate = tripRate ?? settingsRes.data?.rate ?? null;
+
+  /* ── User display name ── */
   const userName: string =
     (user.user_metadata?.full_name as string | undefined) ??
     (user.user_metadata?.name as string | undefined) ??
@@ -91,7 +101,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
         <div className="px-6 py-6 flex flex-col flex-1">
           <DashboardClient
             trip={activeTrip as Trip | null}
-            initialBookings={(bookings as Booking[]) ?? []}
+            initialBookings={bookings}
             route={route}
             currentUserId={user.id}
             userName={userName}

@@ -63,7 +63,7 @@ function LoginForm() {
         transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
         className="relative w-full max-w-sm"
       >
-        <div className="rounded-2xl border border-chrome/15 bg-panel/60 backdrop-blur-sm px-8 py-10 text-center shadow-[0_0_0_1px_rgba(201,205,211,0.04)]">
+        <div className="rounded-2xl border border-chrome/15 bg-panel px-8 py-10 text-center shadow-[0_0_0_1px_rgba(201,205,211,0.04)]">
           {/* A single instrument-panel indicator dot, idle-pulsing like
               the seat visual will later — the one moment of ambient
               motion on this screen. */}
