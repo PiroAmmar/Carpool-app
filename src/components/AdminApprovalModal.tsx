@@ -1,0 +1,141 @@
+'use client';
+
+import { useState, useRef, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+
+interface AdminApprovalModalProps {
+  passengerName: string;
+  seatNumber: number;
+  pickupLocation: string;
+  defaultTime?: string;
+  onConfirm: (approvedTime: string) => void;
+  onCancel: () => void;
+}
+
+export function AdminApprovalModal({
+  passengerName,
+  seatNumber,
+  pickupLocation,
+  defaultTime = '07:45 AM',
+  onConfirm,
+  onCancel,
+}: AdminApprovalModalProps) {
+  const [time, setTime] = useState(defaultTime);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const t = setTimeout(() => inputRef.current?.focus(), 150);
+    return () => clearTimeout(t);
+  }, []);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !isSubmitting) onCancel();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onCancel, isSubmitting]);
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!time.trim() || isSubmitting) return;
+    setIsSubmitting(true);
+    onConfirm(time.trim());
+  }
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        key="approval-backdrop"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.18, ease: 'easeOut' }}
+        onClick={() => !isSubmitting && onCancel()}
+        className="fixed inset-0 z-40 bg-asphalt/80"
+        style={{ willChange: 'opacity' }}
+        aria-hidden
+      />
+
+      <motion.div
+        key="approval-modal"
+        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 10 }}
+        transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+        style={{ willChange: 'transform, opacity' }}
+        className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        role="dialog"
+        aria-modal
+        aria-label="Approve Booking"
+      >
+        <div className="w-full max-w-sm bezel-shell shadow-2xl">
+          <div className="bezel-core px-6 py-6">
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <p className="font-mono text-[10px] tracking-widest text-emerald-400 uppercase font-bold mb-0.5">
+                  Approve Request
+                </p>
+                <h2 className="text-base font-semibold text-warmwhite">
+                  Seat {seatNumber} — {passengerName}
+                </h2>
+                <p className="text-xs text-warmwhite/60 mt-0.5 font-mono">
+                  ↑ Pickup: {pickupLocation}
+                </p>
+              </div>
+              <button
+                onClick={onCancel}
+                disabled={isSubmitting}
+                className="text-warmwhite/30 hover:text-warmwhite/60 transition-colors text-2xl leading-none mt-0.5 disabled:opacity-30"
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit}>
+              <label
+                htmlFor="approval-time"
+                className="block mb-1.5 text-xs text-warmwhite/60 font-medium"
+              >
+                Set Pickup / Arrival Time
+              </label>
+              <input
+                ref={inputRef}
+                id="approval-time"
+                value={time}
+                onChange={(e) => setTime(e.target.value)}
+                placeholder="e.g. 07:45 AM"
+                maxLength={20}
+                autoComplete="off"
+                disabled={isSubmitting}
+                className="w-full rounded-lg border border-chrome/15 bg-asphalt px-4 py-3 text-sm font-mono text-warmwhite placeholder:text-warmwhite/25 outline-none transition-[border-color] duration-160 focus:border-emerald-500/50 disabled:opacity-50"
+              />
+
+              <div className="flex gap-3 mt-5">
+                <button
+                  type="button"
+                  onClick={onCancel}
+                  disabled={isSubmitting}
+                  className="flex-1 rounded-full border border-chrome/15 px-4 py-2.5 text-sm text-warmwhite/55 hover:text-warmwhite/80 transition-colors duration-160 active:scale-[0.97] disabled:opacity-40"
+                >
+                  Cancel
+                </button>
+                <motion.button
+                  type="submit"
+                  disabled={!time.trim() || isSubmitting}
+                  whileTap={{ scale: 0.97 }}
+                  transition={{ duration: 0.16, ease: [0.23, 1, 0.32, 1] }}
+                  className="flex-1 rounded-full bg-emerald-500/90 hover:bg-emerald-500 px-4 py-2.5 text-sm font-bold text-black transition-colors disabled:opacity-35 disabled:cursor-not-allowed"
+                >
+                  {isSubmitting ? 'Approving...' : 'Approve'}
+                </motion.button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}

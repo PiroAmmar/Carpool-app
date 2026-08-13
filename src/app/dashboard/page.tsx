@@ -14,18 +14,28 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
   const today = new Date().toISOString().split('T')[0];
   const fullName = user.user_metadata?.full_name ?? user.user_metadata?.name ?? null;
 
-  /* ── Batch 1: Parallelize User Upsert, Trips Query, Settings Query, & SearchParams ── */
+  const ADMIN_EMAILS = ['piroammar388@gmail.com'];
+  const userEmail = (user.email ?? '').toLowerCase();
+  const isAdminEmail = ADMIN_EMAILS.includes(userEmail);
+
+  /* ── Batch 1: Parallelize User Upsert, Trips Query, Settings Query, User Profile & SearchParams ── */
   const [
     _upsertRes,
     tripsRes,
     settingsRes,
+    userProfileRes,
     resolvedSearchParams,
   ] = await Promise.all([
-    // Non-blocking upsert to ensure user record exists
+    // Non-blocking upsert to ensure user record exists with correct role
     Promise.resolve(
       supabase
         .from('users')
-        .upsert({ id: user.id, email: user.email!, full_name: fullName }, { onConflict: 'id' })
+        .upsert({
+          id: user.id,
+          email: user.email!,
+          full_name: fullName,
+          role: isAdminEmail ? 'admin' : undefined
+        }, { onConflict: 'id' })
     ).catch(err => ({ error: err })),
 
     // Scheduled upcoming trips
@@ -44,6 +54,13 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
       .eq('id', 1)
       .maybeSingle(),
 
+    // User profile role & contact check
+    supabase
+      .from('users')
+      .select('role, whatsapp, phone')
+      .eq('id', user.id)
+      .maybeSingle(),
+
     // Search parameters resolution
     props.searchParams,
   ]);
@@ -53,9 +70,28 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
     console.error('[dashboard] trips query failed:', tripsRes.error.code, tripsRes.error.message);
   }
 
+  const isAdmin = isAdminEmail || userProfileRes.data?.role === 'admin';
+  const queryView = resolvedSearchParams?.view as string | undefined;
+
+  // Redirect admin users to the Admin Dashboard unless explicitly viewing passenger view
+  if (isAdmin && queryView !== 'passenger') {
+    redirect('/admin');
+  }
   const queryTripId = resolvedSearchParams?.tripId as string | undefined;
   const activeTripId = queryTripId || (trips && trips.length > 0 ? trips[0].id : null);
-  const activeTrip = trips.find((t: Trip) => t.id === activeTripId) || null;
+  let activeTrip = trips.find((t: Trip) => t.id === activeTripId) || null;
+
+  // If trip was specifically requested via tripId but is completed/cancelled (not in scheduled list), fetch it directly
+  if (!activeTrip && queryTripId) {
+    const { data: directTrip } = await supabase
+      .from('trips')
+      .select('*')
+      .eq('id', queryTripId)
+      .maybeSingle();
+    if (directTrip) {
+      activeTrip = directTrip as Trip;
+    }
+  }
 
   /* ── Batch 2: Parallelize Bookings & Route queries for active trip ── */
   const [bookingsRes, routeRes] = await Promise.all([
@@ -88,12 +124,17 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
     user.email?.split('@')[0] ??
     'Passenger';
 
+  const userWhatsApp = userProfileRes.data?.whatsapp || userProfileRes.data?.phone || null;
+
   return (
     <main className="min-h-screen bg-asphalt flex flex-col items-center relative overflow-hidden">
       <Sidebar 
         userName={userName} 
+        userWhatsApp={userWhatsApp}
+        currentUserId={user.id}
         trips={(trips as Trip[]) || []} 
         activeTripId={activeTripId} 
+        isAdmin={isAdmin}
       />
       
       <div className="w-full max-w-sm flex-1 flex flex-col relative z-0">

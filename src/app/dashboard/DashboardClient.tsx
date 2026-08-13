@@ -109,7 +109,10 @@ export function DashboardClient({ trip, initialBookings, route, currentUserId, u
     return [...userBookings].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
   }, [bookings, currentUserId]);
 
-  const canBook = !myBooking || myBooking.status === 'rejected';
+  const canBook = useMemo(() => {
+    if (!trip || trip.status !== 'scheduled') return false;
+    return !myBooking || myBooking.status === 'rejected';
+  }, [trip, myBooking]);
 
   /* ── Booking flow ─────────────────────────────────────────────── */
   async function handleBook(seatNumber: number, pickupLocation: string) {
@@ -145,18 +148,15 @@ export function DashboardClient({ trip, initialBookings, route, currentUserId, u
     if (error) {
       console.error('[dashboard] booking insert failed:', error.message);
       setBookings(prev => prev.filter(b => b.id !== optimisticId));
-      setBookingError(error.message || 'Failed to book seat. Please try again.');
-      return;
+      setBookingError(error.message || 'Failed to submit booking request.');
+    } else if (data) {
+      setBookings(prev => prev.map(b => b.id === optimisticId ? (data as Booking) : b));
     }
-
-    setBookingError(null);
-    setBookings(prev =>
-      prev.map(b => b.id === optimisticId ? (data as Booking) : b)
-    );
   }
 
   function handleBookClick() {
-    const occupied = new Set(activeBookings.map(b => b.seat_number));
+    if (!trip || !canBook) return;
+    const occupied = new Set(activeBookings.map((b) => b.seat_number));
     for (let i = 1; i <= seatsTotal; i++) {
       if (!occupied.has(i)) {
         setSelectedSeat(i);
@@ -168,6 +168,51 @@ export function DashboardClient({ trip, initialBookings, route, currentUserId, u
   /* ── Render ───────────────────────────────────────────────────── */
   return (
     <div className="flex flex-col flex-1 pb-6">
+
+      {/* ── Page-wide Trip Completed / Cancelled Disclaimer ───────── */}
+      {trip && trip.status === 'completed' && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          style={{ willChange: 'transform, opacity' }}
+          className="mt-4 mb-3 w-full rounded-2xl border border-chrome/20 bg-panel px-6 py-5 shadow-2xl text-center flex flex-col items-center justify-center gap-1.5"
+        >
+          <div className="flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-chrome/50" />
+            <span className="font-mono text-xs uppercase tracking-widest text-warmwhite/60 font-bold">
+              Trip Status
+            </span>
+          </div>
+          <h2 className="text-xl font-bold tracking-tight text-warmwhite">
+            Trip Completed!
+          </h2>
+          <p className="text-xs text-warmwhite/50 max-w-xs">
+            This ride has finished. New seat bookings are closed for this trip.
+          </p>
+        </motion.div>
+      )}
+
+      {trip && trip.status === 'cancelled' && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          style={{ willChange: 'transform, opacity' }}
+          className="mt-4 mb-3 w-full rounded-2xl border border-rose-500/30 bg-rose-500/10 px-6 py-5 shadow-2xl text-center flex flex-col items-center justify-center gap-1.5"
+        >
+          <div className="flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-rose-500" />
+            <span className="font-mono text-xs uppercase tracking-widest text-rose-400 font-bold">
+              Trip Status
+            </span>
+          </div>
+          <h2 className="text-xl font-bold tracking-tight text-warmwhite">
+            Trip Cancelled
+          </h2>
+          <p className="text-xs text-warmwhite/60 max-w-xs">
+            This trip was cancelled by the driver.
+          </p>
+        </motion.div>
+      )}
 
       {/* ── Booking status panel — in dashboard, above rate ─────── */}
       <AnimatePresence mode="wait">

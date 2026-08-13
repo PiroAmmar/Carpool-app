@@ -1,22 +1,48 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { motion, AnimatePresence } from 'framer-motion';
+import { WhatsAppModal } from '@/components/WhatsAppModal';
 import type { Trip } from '@/types';
 
 interface SidebarProps {
   userName: string;
+  userWhatsApp?: string | null;
+  currentUserId?: string;
   trips: Trip[];
   activeTripId: string | null; // UUID
   onSelectTrip?: (tripId: string) => void;
+  isAdmin?: boolean;
 }
 
-export function Sidebar({ userName, trips, activeTripId, onSelectTrip }: SidebarProps) {
+export function Sidebar({ userName, userWhatsApp, currentUserId, trips, activeTripId, onSelectTrip, isAdmin }: SidebarProps) {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const [isOpen, setIsOpen] = useState(false);
+  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
+  const [whatsappNum, setWhatsappNum] = useState<string | null>(userWhatsApp || null);
+
+  useEffect(() => {
+    setWhatsappNum(userWhatsApp || null);
+  }, [userWhatsApp]);
+
+  async function handleSaveWhatsApp(newNum: string) {
+    if (!currentUserId) return;
+    setWhatsappNum(newNum);
+
+    const { error } = await supabase
+      .from('users')
+      .update({ whatsapp: newNum, phone: newNum })
+      .eq('id', currentUserId);
+
+    if (error) {
+      console.error('[sidebar] whatsapp update failed:', error.message);
+    } else {
+      setIsWhatsAppModalOpen(false);
+    }
+  }
 
   async function handleLogout() {
     await supabase.auth.signOut();
@@ -43,16 +69,49 @@ export function Sidebar({ userName, trips, activeTripId, onSelectTrip }: Sidebar
     }
   }
 
+  const scheduledTrips = useMemo(
+    () => trips.filter((t) => t.status === 'scheduled'),
+    [trips]
+  );
+
   const sidebarContent = (
     <div className="flex flex-col h-full bg-panel w-64 md:w-72 flex-shrink-0 z-40">
       {/* Top Header - User Welcome */}
-      <div className="p-6 border-b border-white/5">
-        <h1 className="text-lg font-semibold text-warmwhite truncate">
-          Welcome back
-        </h1>
-        <p className="mt-0.5 text-xs text-warmwhite/40 font-mono truncate">
-          {userName}
-        </p>
+      <div className="p-6 border-b border-white/5 flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-lg font-semibold text-warmwhite truncate">
+              Welcome back
+            </h1>
+            <p className="mt-0.5 text-xs text-warmwhite/40 font-mono truncate">
+              {userName}
+            </p>
+          </div>
+          {isAdmin && (
+            <button
+              onClick={() => {
+                setIsOpen(false);
+                router.push('/admin');
+              }}
+              className="flex-shrink-0 ml-2 px-2.5 py-1 rounded border border-accent-red/30 bg-accent-red/10 text-[11px] font-mono font-semibold text-accent-red hover:bg-accent-red/20 transition-colors"
+            >
+              Admin Panel
+            </button>
+          )}
+        </div>
+
+        {/* WhatsApp Configuration Button */}
+        <button
+          onClick={() => setIsWhatsAppModalOpen(true)}
+          className="w-full flex items-center justify-between rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-400 hover:bg-emerald-500/20 transition-colors font-mono"
+        >
+          <span className="truncate">
+            {whatsappNum ? `WA: ${whatsappNum}` : 'Configure WhatsApp'}
+          </span>
+          <span className="text-[10px] uppercase font-bold underline opacity-80 flex-shrink-0 ml-1">
+            {whatsappNum ? 'Edit' : '+ Set'}
+          </span>
+        </button>
       </div>
 
       {/* Trips List */}
@@ -61,13 +120,13 @@ export function Sidebar({ userName, trips, activeTripId, onSelectTrip }: Sidebar
           Scheduled Trips
         </p>
 
-        {trips.length === 0 ? (
+        {scheduledTrips.length === 0 ? (
           <div className="px-3 py-4 text-xs text-warmwhite/40">
             No scheduled trips.
           </div>
         ) : (
           <div className="flex flex-col gap-1">
-            {trips.map((trip, i) => {
+            {scheduledTrips.map((trip, i) => {
               const isActive = trip.id === activeTripId;
               return (
                 <motion.button
@@ -168,6 +227,14 @@ export function Sidebar({ userName, trips, activeTripId, onSelectTrip }: Sidebar
           </>
         )}
       </AnimatePresence>
+
+      {isWhatsAppModalOpen && (
+        <WhatsAppModal
+          initialNumber={whatsappNum}
+          onSave={handleSaveWhatsApp}
+          onCancel={() => setIsWhatsAppModalOpen(false)}
+        />
+      )}
     </>
   );
 }

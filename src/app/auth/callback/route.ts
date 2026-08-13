@@ -26,10 +26,13 @@ export async function GET(request: Request) {
   }
 
   const user = data.session.user;
-  const email = user.email ?? "";
+  const email = (user.email ?? "").toLowerCase();
   const allowedDomain = process.env.ALLOWED_EMAIL_DOMAIN ?? "nu.edu.pk";
+  
+  const ADMIN_EMAILS = ["piroammar388@gmail.com"];
+  const isAdmin = ADMIN_EMAILS.includes(email);
 
-  if (!email.toLowerCase().endsWith(`@${allowedDomain}`)) {
+  if (!isAdmin && !email.endsWith(`@${allowedDomain}`)) {
     // Reject: sign the user back out so no session persists, then bounce
     // them to login with an explanatory error.
     await supabase.auth.signOut();
@@ -45,12 +48,13 @@ export async function GET(request: Request) {
       id: user.id,
       email: email,
       full_name: fullName,
-      role: 'passenger' // Default role
+      role: isAdmin ? 'admin' : 'passenger'
     }, { onConflict: 'id' });
 
   if (upsertError) {
     console.error("[auth/callback] user upsert failed:", upsertError.message);
   }
 
-  return NextResponse.redirect(`${origin}/dashboard`);
+  // Redirect admin directly to /admin dashboard, passengers to /dashboard
+  return NextResponse.redirect(isAdmin ? `${origin}/admin` : `${origin}/dashboard`);
 }
