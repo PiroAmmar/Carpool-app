@@ -30,6 +30,16 @@ function formatTripDateTime(date: string, time: string): string {
   }
 }
 
+function formatTripDateOnly(dateStr: string): string {
+  try {
+    const dt = new Date(dateStr);
+    if (Number.isNaN(dt.getTime())) return dateStr;
+    return dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+  } catch {
+    return dateStr;
+  }
+}
+
 function formatTime12h(timeString: string | null) {
   if (!timeString) return 'TBD';
   try {
@@ -225,10 +235,10 @@ export function DashboardClient({ trip, initialBookings, route, currentUserId, u
             transition={{ type: 'spring', duration: 0.45, bounce: 0.15 }}
             style={{ willChange: 'transform, opacity' }}
             className={`mt-4 mb-2 rounded-2xl border px-5 py-4 shadow-xl ${myBooking.status === 'approved'
-                ? 'border-emerald-500/40 bg-emerald-500/[0.12] text-emerald-400'
-                : myBooking.status === 'rejected'
-                  ? 'border-rose-500/40 bg-rose-500/[0.12] text-rose-400'
-                  : 'border-signal-amber/30 bg-signal-amber/10 text-signal-amber'
+              ? 'border-emerald-500/40 bg-emerald-500/[0.12] text-emerald-400'
+              : myBooking.status === 'rejected'
+                ? 'border-rose-500/40 bg-rose-500/[0.12] text-rose-400'
+                : 'border-signal-amber/30 bg-signal-amber/10 text-signal-amber'
               }`}
           >
             {myBooking.status === 'approved' ? (
@@ -276,7 +286,7 @@ export function DashboardClient({ trip, initialBookings, route, currentUserId, u
         )}
       </AnimatePresence>
 
-      {/* ── Rate Display ────────────────────────────────────────── */}
+      {/* ── Rate Display & Current Trip Date ────────────────────── */}
       {rate !== null && (
         <motion.div
           initial={{ opacity: 0, y: 8 }}
@@ -290,6 +300,21 @@ export function DashboardClient({ trip, initialBookings, route, currentUserId, u
             <span className="text-xl text-warmwhite/60 font-sans tracking-normal align-top mr-1">Rs.</span>
             {rate}
           </p>
+
+          {/* Current Trip Date displayed below Trip rate */}
+          {trip && (
+            <div className="mt-2.5 inline-flex items-center gap-1.5 rounded-full border border-chrome/15 bg-panel px-3.5 py-1 shadow-sm">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-accent-red">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                <line x1="16" y1="2" x2="16" y2="6"></line>
+                <line x1="8" y1="2" x2="8" y2="6"></line>
+                <line x1="3" y1="10" x2="21" y2="10"></line>
+              </svg>
+              <span className="font-mono text-xs font-medium text-warmwhite/80">
+                {formatTripDateOnly(trip.trip_date)}
+              </span>
+            </div>
+          )}
         </motion.div>
       )}
 
