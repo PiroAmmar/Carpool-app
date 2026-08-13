@@ -58,9 +58,9 @@ export function Sidebar({ userName, trips, activeTripId, onSelectTrip }: Sidebar
       {/* Trips List */}
       <div className="flex-1 overflow-y-auto py-4 px-3">
         <p className="font-mono text-[10px] tracking-widest text-warmwhite/30 uppercase mb-3 px-3">
-          Upcoming Trips
+          Scheduled Trips
         </p>
-        
+
         {trips.length === 0 ? (
           <div className="px-3 py-4 text-xs text-warmwhite/40">
             No scheduled trips.
@@ -83,11 +83,10 @@ export function Sidebar({ userName, trips, activeTripId, onSelectTrip }: Sidebar
                     }
                     setIsOpen(false);
                   }}
-                  className={`relative flex flex-col items-start pl-4 pr-3 py-2.5 rounded-lg transition-colors duration-160 text-left active:scale-[0.98] ${
-                    isActive
+                  className={`relative flex flex-col items-start pl-4 pr-3 py-2.5 rounded-lg transition-colors duration-160 text-left active:scale-[0.98] ${isActive
                       ? 'bg-accent-red/10 text-accent-red'
                       : 'text-warmwhite/60 hover:bg-white/5 hover:text-warmwhite'
-                  }`}
+                    }`}
                 >
                   {/* Active-row accent rail — spatial indicator, not a color-only cue */}
                   {isActive && (
@@ -130,7 +129,7 @@ export function Sidebar({ userName, trips, activeTripId, onSelectTrip }: Sidebar
   return (
     <>
       {/* Universal Toggle Button */}
-      <button 
+      <button
         onClick={() => setIsOpen(true)}
         className="fixed top-4 left-4 z-30 p-2 rounded-md bg-panel border border-chrome/10 text-warmwhite/80 hover:text-warmwhite shadow-lg transition-transform active:scale-95"
         aria-label="Open menu"
@@ -146,20 +145,23 @@ export function Sidebar({ userName, trips, activeTripId, onSelectTrip }: Sidebar
         {isOpen && (
           <>
             {/* Backdrop */}
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
               onClick={() => setIsOpen(false)}
-              className="fixed inset-0 bg-asphalt/80 backdrop-blur-sm z-40"
+              className="fixed inset-0 bg-asphalt/70 z-40"
+              style={{ willChange: 'opacity' }}
             />
             {/* Drawer */}
             <motion.div
               initial={{ x: '-100%' }}
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              transition={{ type: 'spring', damping: 30, stiffness: 280, mass: 0.8 }}
               className="fixed inset-y-0 left-0 z-50 shadow-2xl"
+              style={{ willChange: 'transform' }}
             >
               {sidebarContent}
             </motion.div>

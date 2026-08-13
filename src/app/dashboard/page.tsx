@@ -43,13 +43,12 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ [k
   const activeTripId = queryTripId || (trips && trips.length > 0 ? trips[0].id : null);
   const activeTrip = trips?.find((t) => t.id === activeTripId) || null;
 
-  /* ── Bookings for active trip (non-rejected) ────────────────── */
+  /* ── Bookings for active trip ────────────────── */
   const { data: bookings } = activeTrip
     ? await supabase
         .from('bookings')
         .select('*')
         .eq('trip_id', activeTrip.id)
-        .neq('status', 'rejected')
     : { data: [] };
 
   /* ── Route for active trip ──────────────────────────────────── */

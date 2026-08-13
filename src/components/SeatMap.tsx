@@ -114,11 +114,11 @@ export function SeatMap({
   }
 
   return (
-    <div className="relative w-full max-w-[240px] mx-auto select-none" role="img" aria-label="Car seat map">
+    <div className="relative w-[140px] select-none" role="img" aria-label="Car seat map">
       {/* Tight-cropped viewBox around the traced artwork's actual bounds
           (x:471-1528, y:94-1905 in the 2000×2000 reference space) — avoids
           rendering the surrounding whitespace from the source canvas. */}
-      <svg viewBox="400 50 1200 1900" xmlns="http://www.w3.org/2000/svg">
+      <svg viewBox="400 50 1200 1900" xmlns="http://www.w3.org/2000/svg" className="w-full h-auto drop-shadow-2xl">
         {/* ── Traced car body (potrace, from approved reference art) ── */}
         <g transform={CAR_OUTLINE_TRANSFORM} fill="var(--color-chrome)" fillOpacity="0.9" stroke="none">
           <path d={CAR_OUTLINE_PATH} />
