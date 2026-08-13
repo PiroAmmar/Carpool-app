@@ -47,15 +47,34 @@ export function AdminClient({
     trips.length > 0 ? trips[0].id : ''
   );
   const [tripStatusFilter, setTripStatusFilter] = useState<'all' | 'scheduled' | 'completed' | 'cancelled'>('scheduled');
+  const [tripSearchQuery, setTripSearchQuery] = useState('');
 
-  const scheduledTrips = useMemo(() => trips.filter((t) => t.status === 'scheduled'), [trips]);
-  const completedTrips = useMemo(() => trips.filter((t) => t.status === 'completed'), [trips]);
-  const cancelledTrips = useMemo(() => trips.filter((t) => t.status === 'cancelled'), [trips]);
+  // Cap per-group render count once trip volume grows — dropdown stays scannable
+  // instead of dumping 100+ <option> rows in at once. Search bypasses the cap.
+  const TRIP_GROUP_CAP = 25;
+
+  const matchesTripSearch = (t: Trip, q: string) => {
+    if (!q) return true;
+    const hay = `${t.trip_date} ${t.trip_time} ${t.direction ?? ''}`.toLowerCase();
+    return hay.includes(q.toLowerCase());
+  };
+
+  const searchedTrips = useMemo(
+    () => trips.filter((t) => matchesTripSearch(t, tripSearchQuery)),
+    [trips, tripSearchQuery]
+  );
+
+  const scheduledTrips = useMemo(() => searchedTrips.filter((t) => t.status === 'scheduled'), [searchedTrips]);
+  const completedTrips = useMemo(() => searchedTrips.filter((t) => t.status === 'completed'), [searchedTrips]);
+  const cancelledTrips = useMemo(() => searchedTrips.filter((t) => t.status === 'cancelled'), [searchedTrips]);
+
+  const cap = (arr: Trip[]) => (tripSearchQuery ? arr : arr.slice(0, TRIP_GROUP_CAP));
+  const overflow = (arr: Trip[]) => (tripSearchQuery ? 0 : Math.max(0, arr.length - TRIP_GROUP_CAP));
 
   const filteredTripsForDropdown = useMemo(() => {
-    if (tripStatusFilter === 'all') return trips;
-    return trips.filter((t) => t.status === tripStatusFilter);
-  }, [trips, tripStatusFilter]);
+    if (tripStatusFilter === 'all') return searchedTrips;
+    return searchedTrips.filter((t) => t.status === tripStatusFilter);
+  }, [searchedTrips, tripStatusFilter]);
 
   // Keep selectedTripId valid when status filter changes
   useEffect(() => {
@@ -195,11 +214,13 @@ export function AdminClient({
   }
 
   async function handleRejectBooking(bookingId: string) {
-    setBookings((prev) => prev.filter((b) => b.id !== bookingId));
+    setBookings((prev) =>
+      prev.map((b) => (b.id === bookingId ? { ...b, status: 'rejected', approved_time: null } : b))
+    );
 
     const { error } = await supabase
       .from('bookings')
-      .delete()
+      .update({ status: 'rejected', approved_time: null })
       .eq('id', bookingId);
 
     if (error) {
@@ -437,6 +458,16 @@ export function AdminClient({
                     </div>
                   </div>
 
+                  {trips.length > TRIP_GROUP_CAP && (
+                    <input
+                      type="text"
+                      value={tripSearchQuery}
+                      onChange={(e) => setTripSearchQuery(e.target.value)}
+                      placeholder="Search trips by date, time or direction…"
+                      className="bg-asphalt text-warmwhite border border-chrome/15 rounded-lg px-3 py-2 text-xs font-mono outline-none focus:border-chrome/40 w-full placeholder:text-warmwhite/30"
+                    />
+                  )}
+
                   <select
                     value={selectedTripId}
                     onChange={(e) => setSelectedTripId(e.target.value)}
@@ -447,8 +478,8 @@ export function AdminClient({
                     ) : (
                       <>
                         {scheduledTrips.length > 0 && (tripStatusFilter === 'all' || tripStatusFilter === 'scheduled') && (
-                          <optgroup label="— SCHEDULED TRIPS —">
-                            {scheduledTrips.map((t) => (
+                          <optgroup label={`— SCHEDULED TRIPS —${overflow(scheduledTrips) ? ` (showing ${TRIP_GROUP_CAP} of ${scheduledTrips.length}, search to see more)` : ''}`}>
+                            {cap(scheduledTrips).map((t) => (
                               <option key={t.id} value={t.id}>
                                 {t.trip_date} · {t.trip_time} ({t.direction || 'No direction'})
                               </option>
@@ -456,8 +487,8 @@ export function AdminClient({
                           </optgroup>
                         )}
                         {completedTrips.length > 0 && (tripStatusFilter === 'all' || tripStatusFilter === 'completed') && (
-                          <optgroup label="— COMPLETED TRIPS —">
-                            {completedTrips.map((t) => (
+                          <optgroup label={`— COMPLETED TRIPS —${overflow(completedTrips) ? ` (showing ${TRIP_GROUP_CAP} of ${completedTrips.length}, search to see more)` : ''}`}>
+                            {cap(completedTrips).map((t) => (
                               <option key={t.id} value={t.id}>
                                 [COMPLETED] {t.trip_date} · {t.trip_time} ({t.direction || 'No direction'})
                               </option>
@@ -465,8 +496,8 @@ export function AdminClient({
                           </optgroup>
                         )}
                         {cancelledTrips.length > 0 && (tripStatusFilter === 'all' || tripStatusFilter === 'cancelled') && (
-                          <optgroup label="— CANCELLED TRIPS —">
-                            {cancelledTrips.map((t) => (
+                          <optgroup label={`— CANCELLED TRIPS —${overflow(cancelledTrips) ? ` (showing ${TRIP_GROUP_CAP} of ${cancelledTrips.length}, search to see more)` : ''}`}>
+                            {cap(cancelledTrips).map((t) => (
                               <option key={t.id} value={t.id}>
                                 [CANCELLED] {t.trip_date} · {t.trip_time} ({t.direction || 'No direction'})
                               </option>

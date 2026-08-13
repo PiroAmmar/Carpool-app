@@ -154,22 +154,19 @@ export function DashboardClient({ trip, initialBookings, route, currentUserId, u
     });
     setSelectedSeat(null);
 
-    // Delete any existing booking row for (trip_id, user_id) so insert never hits unique constraint
-    await supabase
-      .from('bookings')
-      .delete()
-      .eq('trip_id', trip.id)
-      .eq('user_id', currentUserId);
-
+    // Upsert on (trip_id, user_id): re-books a rejected row back to pending
+    // instead of delete+insert (delete silently no-ops under RLS, then
+    // insert hits the unique constraint — that was the bug).
     const { data, error } = await supabase
       .from('bookings')
-      .insert({
+      .upsert({
         trip_id: trip.id,
         user_id: currentUserId,
         seat_number: seatNumber,
         pickup_location: pickupLocation,
         status: 'pending',
-      })
+        approved_time: null,
+      }, { onConflict: 'trip_id,user_id' })
       .select()
       .single();
 
