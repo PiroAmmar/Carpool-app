@@ -40,12 +40,29 @@ export function AdminClient({
   const [trips, setTrips] = useState<Trip[]>(initialTrips);
   const [bookings, setBookings] = useState<Booking[]>(initialBookings);
   const [routes, setRoutes] = useState<Route[]>(initialRoutes);
-  const [users] = useState<UserRecord[]>(initialUsers);
+  const [users, setUsers] = useState<UserRecord[]>(initialUsers);
   const [globalRate, setGlobalRate] = useState<number | null>(initialRate);
 
   const [selectedTripId, setSelectedTripId] = useState<string>(
     trips.length > 0 ? trips[0].id : ''
   );
+  const [tripStatusFilter, setTripStatusFilter] = useState<'all' | 'scheduled' | 'completed' | 'cancelled'>('scheduled');
+
+  const scheduledTrips = useMemo(() => trips.filter((t) => t.status === 'scheduled'), [trips]);
+  const completedTrips = useMemo(() => trips.filter((t) => t.status === 'completed'), [trips]);
+  const cancelledTrips = useMemo(() => trips.filter((t) => t.status === 'cancelled'), [trips]);
+
+  const filteredTripsForDropdown = useMemo(() => {
+    if (tripStatusFilter === 'all') return trips;
+    return trips.filter((t) => t.status === tripStatusFilter);
+  }, [trips, tripStatusFilter]);
+
+  // Keep selectedTripId valid when status filter changes
+  useEffect(() => {
+    if (filteredTripsForDropdown.length > 0 && !filteredTripsForDropdown.some(t => t.id === selectedTripId)) {
+      setSelectedTripId(filteredTripsForDropdown[0].id);
+    }
+  }, [tripStatusFilter, filteredTripsForDropdown, selectedTripId]);
 
   // Modals state
   const [approvingBooking, setApprovingBooking] = useState<Booking | null>(null);
@@ -59,8 +76,8 @@ export function AdminClient({
   const supabase = useMemo(() => createClient(), []);
 
   const activeTrip = useMemo(
-    () => trips.find((t) => t.id === selectedTripId) || trips[0] || null,
-    [trips, selectedTripId]
+    () => trips.find((t) => t.id === selectedTripId) || filteredTripsForDropdown[0] || trips[0] || null,
+    [trips, selectedTripId, filteredTripsForDropdown]
   );
 
   const activeTripBookings = useMemo(
@@ -73,22 +90,38 @@ export function AdminClient({
     [routes]
   );
 
-  /* ── Realtime subscription to bookings & trips ──────────── */
+  /* ── Realtime & Periodic Sync (Bookings, Trips, Users) ──────── */
   useEffect(() => {
+    const fetchLatestData = async () => {
+      const [bRes, tRes, uRes] = await Promise.all([
+        supabase.from('bookings').select('*').order('created_at', { ascending: false }),
+        supabase.from('trips').select('*').order('trip_date', { ascending: false }),
+        supabase.from('users').select('*').order('created_at', { ascending: false }),
+      ]);
+      if (bRes.data) setBookings(bRes.data as Booking[]);
+      if (tRes.data) setTrips(tRes.data as Trip[]);
+      if (uRes.data) setUsers(uRes.data as UserRecord[]);
+    };
+
+    const interval = setInterval(fetchLatestData, 2500);
+
     const channel = supabase
       .channel('admin-realtime')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'bookings' },
         (payload) => {
-          if (payload.eventType === 'INSERT') {
-            setBookings((prev) => [payload.new as Booking, ...prev.filter((b) => b.id !== payload.new.id)]);
-          } else if (payload.eventType === 'UPDATE') {
-            setBookings((prev) =>
-              prev.map((b) => (b.id === payload.new.id ? (payload.new as Booking) : b))
-            );
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const updatedB = payload.new as Booking;
+            setBookings((prev) => {
+              const filtered = prev.filter(
+                (b) => b.id !== updatedB.id && !(b.user_id?.toLowerCase() === updatedB.user_id?.toLowerCase() && b.trip_id === updatedB.trip_id)
+              );
+              return [updatedB, ...filtered];
+            });
           } else if (payload.eventType === 'DELETE') {
-            setBookings((prev) => prev.filter((b) => b.id !== payload.old.id));
+            const deletedId = (payload.old as Partial<Booking>).id;
+            setBookings((prev) => prev.filter((b) => b.id !== deletedId));
           }
         }
       )
@@ -96,18 +129,35 @@ export function AdminClient({
         'postgres_changes',
         { event: '*', schema: 'public', table: 'trips' },
         (payload) => {
-          if (payload.eventType === 'INSERT') {
-            setTrips((prev) => [payload.new as Trip, ...prev.filter((t) => t.id !== payload.new.id)]);
-          } else if (payload.eventType === 'UPDATE') {
-            setTrips((prev) =>
-              prev.map((t) => (t.id === payload.new.id ? (payload.new as Trip) : t))
-            );
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const updatedTrip = payload.new as Trip;
+            setTrips((prev) => {
+              const filtered = prev.filter((t) => t.id !== updatedTrip.id);
+              return [updatedTrip, ...filtered];
+            });
+          } else if (payload.eventType === 'DELETE') {
+            const deletedId = (payload.old as Partial<Trip>).id;
+            setTrips((prev) => prev.filter((t) => t.id !== deletedId));
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'users' },
+        (payload) => {
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const updatedUser = payload.new as UserRecord;
+            setUsers((prev) => {
+              const filtered = prev.filter((u) => u.id !== updatedUser.id);
+              return [updatedUser, ...filtered];
+            });
           }
         }
       )
       .subscribe();
 
     return () => {
+      clearInterval(interval);
       supabase.removeChannel(channel);
     };
   }, [supabase]);
@@ -145,20 +195,18 @@ export function AdminClient({
   }
 
   async function handleRejectBooking(bookingId: string) {
-    setBookings((prev) =>
-      prev.map((b) => (b.id === bookingId ? { ...b, status: 'rejected' } : b))
-    );
+    setBookings((prev) => prev.filter((b) => b.id !== bookingId));
 
     const { error } = await supabase
       .from('bookings')
-      .update({ status: 'rejected' })
+      .delete()
       .eq('id', bookingId);
 
     if (error) {
       console.error('[admin] reject failed:', error.message);
-      showNotification(`Failed to reject: ${error.message}`);
+      showNotification(`Failed to decline: ${error.message}`);
     } else {
-      showNotification('Booking rejected');
+      showNotification('Booking request declined');
     }
   }
 
@@ -285,13 +333,28 @@ export function AdminClient({
   async function handleSaveGlobalRate(newRate: number) {
     setGlobalRate(newRate);
 
-    const { error } = await supabase
+    // Try UPDATE first (satisfies RLS UPDATE policy on settings table)
+    const { error: updateErr } = await supabase
       .from('settings')
       .update({ rate: newRate })
       .eq('id', 1);
 
-    if (error) showNotification(`Failed to update rate: ${error.message}`);
-    else showNotification('Global rate updated');
+    if (!updateErr) {
+      showNotification('Global rate updated successfully!');
+      return;
+    }
+
+    // Fallback INSERT if row id=1 did not exist yet
+    const { error: insertErr } = await supabase
+      .from('settings')
+      .insert({ id: 1, rate: newRate });
+
+    if (insertErr) {
+      console.error('[admin] rate update error:', updateErr?.message, insertErr?.message);
+      showNotification(`Failed to update rate: ${updateErr?.message || insertErr?.message}`);
+    } else {
+      showNotification('Global rate updated successfully!');
+    }
   }
 
   return (
@@ -347,27 +410,77 @@ export function AdminClient({
           {/* Active Trip Selector & Seat Capacity Bar */}
           <div className="bezel-shell">
             <div className="bezel-core p-5 flex flex-col gap-4">
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex flex-col gap-1 min-w-0">
-                  <span className="font-mono text-[10px] tracking-widest text-warmwhite/40 uppercase">
-                    Active Trip Selection
-                  </span>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex flex-col gap-2 min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-mono text-[10px] tracking-widest text-warmwhite/40 uppercase">
+                      Active Trip Selection
+                    </span>
+                    <div className="flex items-center gap-1 bg-asphalt/60 p-0.5 rounded-lg border border-chrome/10">
+                      {[
+                        { id: 'scheduled', label: `Scheduled (${scheduledTrips.length})` },
+                        { id: 'completed', label: `Completed (${completedTrips.length})` },
+                        { id: 'all', label: `All (${trips.length})` },
+                      ].map((filter) => (
+                        <button
+                          key={filter.id}
+                          onClick={() => setTripStatusFilter(filter.id as any)}
+                          className={`px-2 py-0.5 rounded text-[10px] font-mono transition-colors ${
+                            tripStatusFilter === filter.id
+                              ? 'bg-accent-red/20 text-accent-red font-bold'
+                              : 'text-warmwhite/40 hover:text-warmwhite/70'
+                          }`}
+                        >
+                          {filter.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   <select
                     value={selectedTripId}
                     onChange={(e) => setSelectedTripId(e.target.value)}
-                    className="bg-asphalt text-warmwhite border border-chrome/15 rounded-lg px-3 py-2 text-xs font-mono outline-none focus:border-chrome/40"
+                    className="bg-asphalt text-warmwhite border border-chrome/15 rounded-lg px-3 py-2 text-xs font-mono outline-none focus:border-chrome/40 w-full truncate"
                   >
-                    {trips.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.trip_date} · {t.trip_time} ({t.direction || 'No direction'})
-                      </option>
-                    ))}
+                    {filteredTripsForDropdown.length === 0 ? (
+                      <option value="">No trips match filter ({tripStatusFilter})</option>
+                    ) : (
+                      <>
+                        {scheduledTrips.length > 0 && (tripStatusFilter === 'all' || tripStatusFilter === 'scheduled') && (
+                          <optgroup label="— SCHEDULED TRIPS —">
+                            {scheduledTrips.map((t) => (
+                              <option key={t.id} value={t.id}>
+                                {t.trip_date} · {t.trip_time} ({t.direction || 'No direction'})
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
+                        {completedTrips.length > 0 && (tripStatusFilter === 'all' || tripStatusFilter === 'completed') && (
+                          <optgroup label="— COMPLETED TRIPS —">
+                            {completedTrips.map((t) => (
+                              <option key={t.id} value={t.id}>
+                                [COMPLETED] {t.trip_date} · {t.trip_time} ({t.direction || 'No direction'})
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
+                        {cancelledTrips.length > 0 && (tripStatusFilter === 'all' || tripStatusFilter === 'cancelled') && (
+                          <optgroup label="— CANCELLED TRIPS —">
+                            {cancelledTrips.map((t) => (
+                              <option key={t.id} value={t.id}>
+                                [CANCELLED] {t.trip_date} · {t.trip_time} ({t.direction || 'No direction'})
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
+                      </>
+                    )}
                   </select>
                 </div>
 
                 <button
                   onClick={() => setIsSchedulerOpen(true)}
-                  className="flex-shrink-0 px-3.5 py-2 rounded-full bg-accent-red text-white text-xs font-bold uppercase tracking-wide hover:bg-accent-red/90 transition-colors"
+                  className="flex-shrink-0 px-3.5 py-2 rounded-full bg-accent-red text-white text-xs font-bold uppercase tracking-wide hover:bg-accent-red/90 transition-colors self-start sm:self-auto"
                 >
                   + New Trip
                 </button>
@@ -511,62 +624,94 @@ export function AdminClient({
           transition={{ duration: 0.25 }}
           className="flex flex-col gap-4"
         >
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="font-mono text-xs font-semibold tracking-widest text-warmwhite/80 uppercase">
-              All Scheduled & Past Trips ({trips.length})
-            </h3>
-            <button
-              onClick={() => setIsSchedulerOpen(true)}
-              className="px-3 py-1.5 rounded-full bg-accent-red text-white text-xs font-bold uppercase tracking-wide hover:bg-accent-red/90 transition-colors"
-            >
-              + Schedule Trip
-            </button>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
+            <div className="flex items-center gap-2">
+              <h3 className="font-mono text-xs font-semibold tracking-widest text-warmwhite/80 uppercase">
+                Trip Directory ({filteredTripsForDropdown.length})
+              </h3>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 bg-asphalt/60 p-0.5 rounded-lg border border-chrome/10">
+                {[
+                  { id: 'scheduled', label: `Scheduled (${scheduledTrips.length})` },
+                  { id: 'completed', label: `Completed (${completedTrips.length})` },
+                  { id: 'all', label: `All (${trips.length})` },
+                ].map((filter) => (
+                  <button
+                    key={filter.id}
+                    onClick={() => setTripStatusFilter(filter.id as any)}
+                    className={`px-2 py-0.5 rounded text-[10px] font-mono transition-colors ${
+                      tripStatusFilter === filter.id
+                        ? 'bg-accent-red/20 text-accent-red font-bold'
+                        : 'text-warmwhite/40 hover:text-warmwhite/70'
+                    }`}
+                  >
+                    {filter.label}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => setIsSchedulerOpen(true)}
+                className="px-3 py-1.5 rounded-full bg-accent-red text-white text-xs font-bold uppercase tracking-wide hover:bg-accent-red/90 transition-colors"
+              >
+                + Schedule Trip
+              </button>
+            </div>
           </div>
 
           <div className="flex flex-col gap-3">
-            {trips.map((t) => (
-              <div key={t.id} className="bezel-shell">
-                <div className="bezel-core p-4 flex items-center justify-between gap-4">
-                  <div className="flex flex-col gap-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs text-warmwhite font-bold">
-                        {t.trip_date} · {t.trip_time}
-                      </span>
-                      <span className={`text-[10px] font-mono px-2 py-0.5 rounded uppercase ${
-                        t.status === 'scheduled' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-chrome/10 text-warmwhite/50'
-                      }`}>
-                        {t.status}
-                      </span>
-                    </div>
-                    <p className="text-xs text-accent-red font-medium truncate">
-                      {t.direction || 'No direction'}
-                    </p>
-                    <p className="text-[11px] font-mono text-warmwhite/50">
-                      Seats: {t.seats_total} · Rate: {t.rate ? `Rs. ${t.rate}` : 'Default'}
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    {t.status === 'scheduled' && (
-                      <>
-                        <button
-                          onClick={() => handleUpdateTripStatus(t.id, 'completed')}
-                          className="px-2.5 py-1 rounded text-xs bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30"
-                        >
-                          Complete
-                        </button>
-                        <button
-                          onClick={() => handleUpdateTripStatus(t.id, 'cancelled')}
-                          className="px-2.5 py-1 rounded text-xs bg-rose-500/20 text-rose-400 hover:bg-rose-500/30"
-                        >
-                          Cancel
-                        </button>
-                      </>
-                    )}
-                  </div>
+            {filteredTripsForDropdown.length === 0 ? (
+              <div className="bezel-shell">
+                <div className="bezel-core p-8 text-center text-xs font-mono text-warmwhite/40">
+                  No trips match current status filter ({tripStatusFilter})
                 </div>
               </div>
-            ))}
+            ) : (
+              filteredTripsForDropdown.map((t) => (
+                <div key={t.id} className="bezel-shell">
+                  <div className="bezel-core p-4 flex items-center justify-between gap-4">
+                    <div className="flex flex-col gap-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs text-warmwhite font-bold">
+                          {t.trip_date} · {t.trip_time}
+                        </span>
+                        <span className={`text-[10px] font-mono px-2 py-0.5 rounded uppercase ${
+                          t.status === 'scheduled' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-chrome/10 text-warmwhite/50'
+                        }`}>
+                          {t.status}
+                        </span>
+                      </div>
+                      <p className="text-xs text-accent-red font-medium truncate">
+                        {t.direction || 'No direction'}
+                      </p>
+                      <p className="text-[11px] font-mono text-warmwhite/50">
+                        Seats: {t.seats_total} · Rate: {t.rate ? `Rs. ${t.rate}` : 'Default'}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {t.status === 'scheduled' && (
+                        <>
+                          <button
+                            onClick={() => handleUpdateTripStatus(t.id, 'completed')}
+                            className="px-2.5 py-1 rounded text-xs bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30"
+                          >
+                            Complete
+                          </button>
+                          <button
+                            onClick={() => handleUpdateTripStatus(t.id, 'cancelled')}
+                            className="px-2.5 py-1 rounded text-xs bg-rose-500/20 text-rose-400 hover:bg-rose-500/30"
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </motion.div>
       )}
@@ -709,9 +854,15 @@ export function AdminClient({
               </label>
               <div className="flex items-center gap-3">
                 <input
-                  type="number"
-                  value={globalRate ?? ''}
-                  onChange={(e) => setGlobalRate(parseFloat(e.target.value) || 0)}
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={globalRate !== null && globalRate !== undefined ? globalRate : ''}
+                  onChange={(e) => {
+                    const cleaned = e.target.value.replace(/[^\d.]/g, '');
+                    setGlobalRate(cleaned === '' ? null : parseFloat(cleaned));
+                  }}
+                  placeholder="e.g. 200"
                   className="bg-asphalt text-warmwhite font-mono border border-chrome/15 rounded-lg px-3 py-2 text-sm outline-none focus:border-chrome/35 w-40"
                 />
                 <button

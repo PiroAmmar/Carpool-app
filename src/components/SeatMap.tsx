@@ -106,10 +106,10 @@ export function SeatMap({
   seatsTotal = 4,
 }: SeatMapProps) {
   function getSeatStatus(num: number): SeatStatus {
-    const b = bookings.find(b => b.seat_number === num);
+    const b = bookings.find(b => b.seat_number === num && b.status !== 'rejected');
     if (!b) return 'available';
     if (b.status === 'approved') return 'approved';
-    if (b.user_id === currentUserId) return 'mine-pending';
+    if (b.user_id?.toLowerCase() === currentUserId?.toLowerCase()) return 'mine-pending';
     return 'pending';
   }
 

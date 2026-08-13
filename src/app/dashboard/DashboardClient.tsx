@@ -66,42 +66,49 @@ export function DashboardClient({ trip, initialBookings, route, currentUserId, u
     setBookingError(null);
   }, [trip?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* ── Realtime: subscribe to booking changes on this trip ──────── */
+  /* ── Periodic & Realtime Sync ──────────────────────────────────── */
   useEffect(() => {
     if (!trip) return;
+
+    // Fast fallback poll to guarantee bulletproof sync across devices
+    const fetchLatest = async () => {
+      const { data } = await supabase
+        .from('bookings')
+        .select('*')
+        .eq('trip_id', trip.id);
+      if (data) {
+        setBookings(data as Booking[]);
+      }
+    };
+
+    const interval = setInterval(fetchLatest, 2500);
 
     const channel = supabase
       .channel(`trip-bookings-${trip.id}`)
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'bookings', filter: `trip_id=eq.${trip.id}` },
+        { event: '*', schema: 'public', table: 'bookings', filter: `trip_id=eq.${trip.id}` },
         (payload) => {
-          const newB = payload.new as Booking;
-          setBookings(prev => {
-            const exists = prev.some(b => b.id === newB.id);
-            return exists ? prev.map(b => b.id === newB.id ? newB : b) : [...prev, newB];
-          });
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'bookings', filter: `trip_id=eq.${trip.id}` },
-        (payload) => {
-          const updatedB = payload.new as Booking;
-          setBookings(prev => prev.map(b => b.id === updatedB.id ? updatedB : b));
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'DELETE', schema: 'public', table: 'bookings' },
-        (payload) => {
-          const deletedId = (payload.old as Partial<Booking>).id;
-          setBookings(prev => prev.filter(b => b.id !== deletedId));
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const updatedB = payload.new as Booking;
+            setBookings((prev) => {
+              const filtered = prev.filter(
+                (b) => b.id !== updatedB.id && !(b.user_id?.toLowerCase() === updatedB.user_id?.toLowerCase() && b.trip_id === updatedB.trip_id)
+              );
+              return [...filtered, updatedB];
+            });
+          } else if (payload.eventType === 'DELETE') {
+            const deletedId = (payload.old as Partial<Booking>).id;
+            setBookings((prev) => prev.filter((b) => b.id !== deletedId));
+          }
         }
       )
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      clearInterval(interval);
+      supabase.removeChannel(channel);
+    };
   }, [supabase, trip?.id]);
 
   /* ── Derived state ────────────────────────────────────────────── */
@@ -111,7 +118,8 @@ export function DashboardClient({ trip, initialBookings, route, currentUserId, u
 
   // Find the user's booking. Prioritize active (approved/pending) over rejected.
   const myBooking = useMemo(() => {
-    const userBookings = bookings.filter(b => b.user_id === currentUserId);
+    const uid = currentUserId?.toLowerCase();
+    const userBookings = bookings.filter(b => b.user_id?.toLowerCase() === uid);
     if (userBookings.length === 0) return undefined;
     const active = userBookings.find(b => b.status !== 'rejected');
     if (active) return active;
@@ -140,8 +148,18 @@ export function DashboardClient({ trip, initialBookings, route, currentUserId, u
       created_at: new Date().toISOString(),
     };
 
-    setBookings(prev => [...prev, optimistic]);
+    setBookings(prev => {
+      const filtered = prev.filter(b => b.user_id !== currentUserId || b.trip_id !== trip.id);
+      return [...filtered, optimistic];
+    });
     setSelectedSeat(null);
+
+    // Delete any existing booking row for (trip_id, user_id) so insert never hits unique constraint
+    await supabase
+      .from('bookings')
+      .delete()
+      .eq('trip_id', trip.id)
+      .eq('user_id', currentUserId);
 
     const { data, error } = await supabase
       .from('bookings')
@@ -156,7 +174,7 @@ export function DashboardClient({ trip, initialBookings, route, currentUserId, u
       .single();
 
     if (error) {
-      console.error('[dashboard] booking insert failed:', error.message);
+      console.error('[dashboard] booking request failed:', error.message);
       setBookings(prev => prev.filter(b => b.id !== optimisticId));
       setBookingError(error.message || 'Failed to submit booking request.');
     } else if (data) {
@@ -266,7 +284,12 @@ export function DashboardClient({ trip, initialBookings, route, currentUserId, u
                   <p className="font-semibold tracking-tight text-[15px]">Request Declined</p>
                   <p className="text-xs opacity-70 mt-0.5">Sorry for the inconvenience.</p>
                 </div>
-                <div className="flex-shrink-0 ml-4 opacity-80 text-rose-500 text-xl font-black">×</div>
+                <button
+                  onClick={handleBookClick}
+                  className="px-3.5 py-1.5 rounded-full bg-accent-red text-white text-xs font-bold hover:bg-accent-red/90 transition-colors uppercase flex-shrink-0 ml-4 shadow-lg shadow-accent-red/20"
+                >
+                  Re-book Seat
+                </button>
               </div>
             ) : (
               <div className="flex items-center justify-between py-1">
@@ -401,7 +424,7 @@ export function DashboardClient({ trip, initialBookings, route, currentUserId, u
                 transition={{ duration: 0.16, ease: [0.23, 1, 0.32, 1] }}
                 className="group w-full flex items-center justify-between rounded-xl pl-5 pr-2 py-2 text-sm font-bold tracking-wide bg-accent-red/90 text-white hover:bg-accent-red shadow-lg shadow-accent-red/20 uppercase"
               >
-                Book a seat
+                {myBooking?.status === 'rejected' ? 'Re-book a seat' : 'Book a seat'}
                 <span className="flex h-9 w-9 items-center justify-center rounded-full bg-black/15 transition-transform duration-160 ease-out group-hover:translate-x-0.5 group-active:scale-95">
                   →
                 </span>

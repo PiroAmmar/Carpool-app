@@ -60,6 +60,17 @@ body {
   }
 }
 
+/* Disable number input spinners and scroll wheel stepping */
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
 /* Double-bezel shell — nested outer/inner radii, concentric by construction. */
 .bezel-shell {
   border-radius: 1.75rem;
