@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
+import { BaseModal } from './BaseModal';
 
 interface BookingModalProps {
   seatNumber: number;
@@ -20,13 +21,6 @@ export function BookingModal({ seatNumber, onConfirm, onCancel }: BookingModalPr
     return () => clearTimeout(t);
   }, []);
 
-  // Close on Escape
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape' && !isSubmitting) onCancel(); };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [onCancel, isSubmitting]);
-
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!pickup.trim() || isSubmitting) return;
@@ -35,100 +29,56 @@ export function BookingModal({ seatNumber, onConfirm, onCancel }: BookingModalPr
   }
 
   return (
-    <AnimatePresence>
-      {/* Backdrop */}
-      <motion.div
-        key="backdrop"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.18, ease: 'easeOut' }}
-        onClick={() => !isSubmitting && onCancel()}
-        className="fixed inset-0 z-40 bg-asphalt/75"
-        style={{ willChange: 'opacity' }}
-        aria-hidden
-      />
+    <BaseModal
+      onCancel={onCancel}
+      isSubmitting={isSubmitting}
+      badgeText="Booking"
+      badgeColor="text-warmwhite/35"
+      title={`Seat ${seatNumber}`}
+      ariaLabel={`Book seat ${seatNumber}`}
+    >
+      <form onSubmit={handleSubmit}>
+        <label
+          htmlFor="pickup-location"
+          className="block mb-1.5 text-xs text-warmwhite/50"
+        >
+          Pickup/Dropoff location
+        </label>
+        <input
+          ref={inputRef}
+          id="pickup-location"
+          value={pickup}
+          onChange={e => setPickup(e.target.value)}
+          placeholder="e.g. Fivestar"
+          maxLength={60}
+          autoComplete="off"
+          disabled={isSubmitting}
+          className="w-full rounded-lg border border-chrome/15 bg-asphalt px-4 py-3 text-sm text-warmwhite placeholder:text-warmwhite/25 outline-none transition-[border-color] duration-160 focus:border-chrome/35 disabled:opacity-50"
+        />
 
-      {/* Centered modal */}
-      <motion.div
-        key="modal"
-        initial={{ opacity: 0, scale: 0.95, y: 10 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 10 }}
-        transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-        style={{ willChange: 'transform, opacity' }}
-        className="fixed inset-0 z-50 flex items-center justify-center p-4"
-        role="dialog"
-        aria-modal
-        aria-label={`Book seat ${seatNumber}`}
-      >
-        <div className="w-full max-w-sm bezel-shell shadow-2xl">
-          <div className="bezel-core px-6 py-6">
-            {/* Header */}
-            <div className="flex items-start justify-between mb-5">
-              <div>
-                <p className="font-mono text-[10px] tracking-widest text-warmwhite/35 uppercase mb-0.5">
-                  Booking
-                </p>
-                <h2 className="text-base font-semibold text-warmwhite">
-                  Seat {seatNumber}
-                </h2>
-              </div>
-              <button
-                onClick={onCancel}
-                disabled={isSubmitting}
-                className="text-warmwhite/30 hover:text-warmwhite/60 transition-colors text-2xl leading-none mt-0.5 disabled:opacity-30"
-                aria-label="Close"
-              >
-                ×
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmit}>
-              <label
-                htmlFor="pickup-location"
-                className="block mb-1.5 text-xs text-warmwhite/50"
-              >
-                Pickup/Dropoff location
-              </label>
-              <input
-                ref={inputRef}
-                id="pickup-location"
-                value={pickup}
-                onChange={e => setPickup(e.target.value)}
-                placeholder="e.g. Fivestar"
-                maxLength={60}
-                autoComplete="off"
-                disabled={isSubmitting}
-                className="w-full rounded-lg border border-chrome/15 bg-asphalt px-4 py-3 text-sm text-warmwhite placeholder:text-warmwhite/25 outline-none transition-[border-color] duration-160 focus:border-chrome/35 disabled:opacity-50"
-              />
-
-              <div className="flex gap-3 mt-4">
-                <button
-                  type="button"
-                  onClick={onCancel}
-                  disabled={isSubmitting}
-                  className="flex-1 rounded-full border border-chrome/15 px-4 py-2.5 text-sm text-warmwhite/55 hover:text-warmwhite/80 transition-colors duration-160 active:scale-[0.97] disabled:opacity-40"
-                >
-                  Cancel
-                </button>
-                <motion.button
-                  type="submit"
-                  disabled={!pickup.trim() || isSubmitting}
-                  whileTap={{ scale: 0.97 }}
-                  transition={{ duration: 0.16, ease: [0.23, 1, 0.32, 1] }}
-                  className="group flex-1 flex items-center justify-between rounded-full bg-accent-red/90 pl-4 pr-1.5 py-1.5 text-sm font-bold text-white hover:bg-accent-red transition-colors disabled:opacity-35 disabled:cursor-not-allowed"
-                >
-                  {isSubmitting ? 'Booking...' : 'Confirm'}
-                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-black/15 transition-transform duration-160 ease-out group-hover:translate-x-0.5">
-                    →
-                  </span>
-                </motion.button>
-              </div>
-            </form>
-          </div>
+        <div className="flex gap-3 mt-4">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={isSubmitting}
+            className="flex-1 rounded-full border border-chrome/15 px-4 py-2.5 text-sm text-warmwhite/55 hover:text-warmwhite/80 transition-colors duration-160 active:scale-[0.97] disabled:opacity-40"
+          >
+            Cancel
+          </button>
+          <motion.button
+            type="submit"
+            disabled={!pickup.trim() || isSubmitting}
+            whileTap={{ scale: 0.97 }}
+            transition={{ duration: 0.16, ease: [0.23, 1, 0.32, 1] }}
+            className="group flex-1 flex items-center justify-between rounded-full bg-accent-red/90 pl-4 pr-1.5 py-1.5 text-sm font-bold text-white hover:bg-accent-red transition-colors disabled:opacity-35 disabled:cursor-not-allowed"
+          >
+            {isSubmitting ? 'Booking...' : 'Confirm'}
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-black/15 transition-transform duration-160 ease-out group-hover:translate-x-0.5">
+              →
+            </span>
+          </motion.button>
         </div>
-      </motion.div>
-    </AnimatePresence>
+      </form>
+    </BaseModal>
   );
 }

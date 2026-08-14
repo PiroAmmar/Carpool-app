@@ -29,6 +29,48 @@ interface AdminClientProps {
 
 type Tab = 'bookings' | 'trips' | 'presets' | 'passengers' | 'settings';
 
+type TripStatusFilterType = 'all' | 'scheduled' | 'completed' | 'cancelled';
+
+interface TripFilterToggleProps {
+  scheduledCount: number;
+  completedCount: number;
+  totalCount: number;
+  currentFilter: TripStatusFilterType;
+  onSelectFilter: (filter: TripStatusFilterType) => void;
+}
+
+function TripFilterToggle({
+  scheduledCount,
+  completedCount,
+  totalCount,
+  currentFilter,
+  onSelectFilter,
+}: TripFilterToggleProps) {
+  const options: { id: TripStatusFilterType; label: string }[] = [
+    { id: 'scheduled', label: `Scheduled (${scheduledCount})` },
+    { id: 'completed', label: `Completed (${completedCount})` },
+    { id: 'all', label: `All (${totalCount})` },
+  ];
+
+  return (
+    <div className="flex items-center gap-1 bg-asphalt/60 p-0.5 rounded-lg border border-chrome/10">
+      {options.map((filter) => (
+        <button
+          key={filter.id}
+          onClick={() => onSelectFilter(filter.id)}
+          className={`px-2 py-0.5 rounded text-[10px] font-mono transition-colors ${
+            currentFilter === filter.id
+              ? 'bg-accent-red/20 text-accent-red font-bold'
+              : 'text-warmwhite/40 hover:text-warmwhite/70'
+          }`}
+        >
+          {filter.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function AdminClient({
   initialTrips,
   initialBookings,
@@ -307,23 +349,36 @@ export function AdminClient({
   }
 
   /* ── Route Preset Handlers ─────────────────────────────── */
-  async function handleSavePreset(data: { name: string; stops: string[] }) {
+  async function handleSavePreset(data: { name: string; stops: string[] }): Promise<boolean> {
     const preset = presetModalState.preset;
+    const dupe = routePresets.some(
+      (r) => r.id !== preset?.id && r.name.trim().toLowerCase() === data.name.trim().toLowerCase()
+    );
+    if (dupe) {
+      showNotification(`Preset "${data.name.trim()}" already exists`);
+      return false;
+    }
 
     if (preset) {
       // Edit
       setRoutes((prev) =>
         prev.map((r) => (r.id === preset.id ? { ...r, ...data } : r))
       );
-      setPresetModalState({ isOpen: false, preset: null });
 
       const { error } = await supabase
         .from('routes')
         .update({ name: data.name, stops: data.stops })
         .eq('id', preset.id);
 
-      if (error) showNotification(`Failed to update preset: ${error.message}`);
-      else showNotification('Route preset updated');
+      if (error) {
+        showNotification(
+          error.code === '23505' ? `Preset "${data.name}" already exists` : `Failed to update preset: ${error.message}`
+        );
+        return false;
+      }
+      setPresetModalState({ isOpen: false, preset: null });
+      showNotification('Route preset updated');
+      return true;
     } else {
       // Create
       const { data: newPreset, error } = await supabase
@@ -332,14 +387,18 @@ export function AdminClient({
         .select()
         .single();
 
-      setPresetModalState({ isOpen: false, preset: null });
-
       if (error) {
-        showNotification(`Failed to create preset: ${error.message}`);
-      } else if (newPreset) {
+        showNotification(
+          error.code === '23505' ? `Preset "${data.name}" already exists` : `Failed to create preset: ${error.message}`
+        );
+        return false;
+      }
+      setPresetModalState({ isOpen: false, preset: null });
+      if (newPreset) {
         setRoutes((prev) => [...prev, newPreset as Route]);
         showNotification('New route preset created');
       }
+      return true;
     }
   }
 
@@ -437,25 +496,13 @@ export function AdminClient({
                     <span className="font-mono text-[10px] tracking-widest text-warmwhite/40 uppercase">
                       Active Trip Selection
                     </span>
-                    <div className="flex items-center gap-1 bg-asphalt/60 p-0.5 rounded-lg border border-chrome/10">
-                      {[
-                        { id: 'scheduled', label: `Scheduled (${scheduledTrips.length})` },
-                        { id: 'completed', label: `Completed (${completedTrips.length})` },
-                        { id: 'all', label: `All (${trips.length})` },
-                      ].map((filter) => (
-                        <button
-                          key={filter.id}
-                          onClick={() => setTripStatusFilter(filter.id as any)}
-                          className={`px-2 py-0.5 rounded text-[10px] font-mono transition-colors ${
-                            tripStatusFilter === filter.id
-                              ? 'bg-accent-red/20 text-accent-red font-bold'
-                              : 'text-warmwhite/40 hover:text-warmwhite/70'
-                          }`}
-                        >
-                          {filter.label}
-                        </button>
-                      ))}
-                    </div>
+                    <TripFilterToggle
+                      scheduledCount={scheduledTrips.length}
+                      completedCount={completedTrips.length}
+                      totalCount={trips.length}
+                      currentFilter={tripStatusFilter}
+                      onSelectFilter={setTripStatusFilter}
+                    />
                   </div>
 
                   {trips.length > TRIP_GROUP_CAP && (
@@ -663,25 +710,13 @@ export function AdminClient({
             </div>
 
             <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1 bg-asphalt/60 p-0.5 rounded-lg border border-chrome/10">
-                {[
-                  { id: 'scheduled', label: `Scheduled (${scheduledTrips.length})` },
-                  { id: 'completed', label: `Completed (${completedTrips.length})` },
-                  { id: 'all', label: `All (${trips.length})` },
-                ].map((filter) => (
-                  <button
-                    key={filter.id}
-                    onClick={() => setTripStatusFilter(filter.id as any)}
-                    className={`px-2 py-0.5 rounded text-[10px] font-mono transition-colors ${
-                      tripStatusFilter === filter.id
-                        ? 'bg-accent-red/20 text-accent-red font-bold'
-                        : 'text-warmwhite/40 hover:text-warmwhite/70'
-                    }`}
-                  >
-                    {filter.label}
-                  </button>
-                ))}
-              </div>
+              <TripFilterToggle
+                scheduledCount={scheduledTrips.length}
+                completedCount={completedTrips.length}
+                totalCount={trips.length}
+                currentFilter={tripStatusFilter}
+                onSelectFilter={setTripStatusFilter}
+              />
               <button
                 onClick={() => setIsSchedulerOpen(true)}
                 className="px-3 py-1.5 rounded-full bg-accent-red text-white text-xs font-bold uppercase tracking-wide hover:bg-accent-red/90 transition-colors"

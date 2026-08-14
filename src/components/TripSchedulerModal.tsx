@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState } from 'react';
+import { motion } from 'framer-motion';
 import type { Route } from '@/types';
+import { BaseModal } from './BaseModal';
 
 interface TripSchedulerModalProps {
   presets: Route[];
@@ -37,14 +38,6 @@ export function TripSchedulerModal({
   const [rateInput, setRateInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !isSubmitting) onCancel();
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [onCancel, isSubmitting]);
-
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!date || !time || isSubmitting) return;
@@ -63,166 +56,126 @@ export function TripSchedulerModal({
   }
 
   return (
-    <AnimatePresence>
-      <motion.div
-        key="trip-scheduler-backdrop"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.18, ease: 'easeOut' }}
-        onClick={() => !isSubmitting && onCancel()}
-        className="fixed inset-0 z-40 bg-asphalt/80"
-        style={{ willChange: 'opacity' }}
-        aria-hidden
-      />
-
-      <motion.div
-        key="trip-scheduler-modal"
-        initial={{ opacity: 0, scale: 0.95, y: 10 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 10 }}
-        transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-        style={{ willChange: 'transform, opacity' }}
-        className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto"
-        role="dialog"
-        aria-modal
-        aria-label="Schedule New Trip"
-      >
-        <div className="w-full max-w-md bezel-shell shadow-2xl my-auto">
-          <div className="bezel-core px-6 py-6">
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <p className="font-mono text-[10px] tracking-widest text-accent-red uppercase font-bold mb-0.5">
-                  Trip Management
-                </p>
-                <h2 className="text-base font-semibold text-warmwhite">
-                  Schedule New Trip
-                </h2>
-              </div>
-              <button
-                onClick={onCancel}
-                disabled={isSubmitting}
-                className="text-warmwhite/30 hover:text-warmwhite/60 transition-colors text-2xl leading-none mt-0.5 disabled:opacity-30"
-                aria-label="Close"
-              >
-                ×
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-              {/* Date & Time */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block mb-1 text-xs text-warmwhite/60 font-medium">Date</label>
-                  <input
-                    type="date"
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    required
-                    disabled={isSubmitting}
-                    className="w-full rounded-lg border border-chrome/15 bg-asphalt px-3 py-2 text-xs font-mono text-warmwhite outline-none focus:border-chrome/35"
-                  />
-                </div>
-                <div>
-                  <label className="block mb-1 text-xs text-warmwhite/60 font-medium">Time</label>
-                  <input
-                    type="time"
-                    value={time}
-                    onChange={(e) => setTime(e.target.value)}
-                    required
-                    disabled={isSubmitting}
-                    className="w-full rounded-lg border border-chrome/15 bg-asphalt px-3 py-2 text-xs font-mono text-warmwhite outline-none focus:border-chrome/35"
-                  />
-                </div>
-              </div>
-
-              {/* Direction */}
-              <div>
-                <label className="block mb-1 text-xs text-warmwhite/60 font-medium">Direction</label>
-                <select
-                  value={direction}
-                  onChange={(e) => setDirection(e.target.value)}
-                  disabled={isSubmitting}
-                  className="w-full rounded-lg border border-chrome/15 bg-asphalt px-3 py-2.5 text-xs text-warmwhite outline-none focus:border-chrome/35"
-                >
-                  {DIRECTIONS.map((dir) => (
-                    <option key={dir} value={dir} className="bg-panel text-warmwhite">
-                      {dir}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Route Preset Assignment */}
-              <div>
-                <label className="block mb-1 text-xs text-warmwhite/60 font-medium">Route Preset</label>
-                <select
-                  value={selectedRouteId}
-                  onChange={(e) => setSelectedRouteId(e.target.value)}
-                  disabled={isSubmitting}
-                  className="w-full rounded-lg border border-chrome/15 bg-asphalt px-3 py-2.5 text-xs text-warmwhite outline-none focus:border-chrome/35"
-                >
-                  <option value="" className="bg-panel text-warmwhite/50">-- None --</option>
-                  {presets.map((preset) => (
-                    <option key={preset.id} value={preset.id} className="bg-panel text-warmwhite">
-                      {preset.name} ({preset.stops.join(' → ')})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Total Seats & Trip Rate */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block mb-1 text-xs text-warmwhite/60 font-medium">Total Seats</label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={8}
-                    value={seatsTotal}
-                    onChange={(e) => setSeatsTotal(parseInt(e.target.value, 10) || 4)}
-                    required
-                    disabled={isSubmitting}
-                    className="w-full rounded-lg border border-chrome/15 bg-asphalt px-3 py-2 text-xs font-mono text-warmwhite outline-none focus:border-chrome/35"
-                  />
-                </div>
-                <div>
-                  <label className="block mb-1 text-xs text-warmwhite/60 font-medium">Trip Rate (Rs.)</label>
-                  <input
-                    type="number"
-                    placeholder="Global default"
-                    value={rateInput}
-                    onChange={(e) => setRateInput(e.target.value)}
-                    disabled={isSubmitting}
-                    className="w-full rounded-lg border border-chrome/15 bg-asphalt px-3 py-2 text-xs font-mono text-warmwhite placeholder:text-warmwhite/30 outline-none focus:border-chrome/35"
-                  />
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div className="flex gap-3 mt-4">
-                <button
-                  type="button"
-                  onClick={onCancel}
-                  disabled={isSubmitting}
-                  className="flex-1 rounded-full border border-chrome/15 px-4 py-2.5 text-sm text-warmwhite/55 hover:text-warmwhite/80 transition-colors duration-160 active:scale-[0.97] disabled:opacity-40"
-                >
-                  Cancel
-                </button>
-                <motion.button
-                  type="submit"
-                  disabled={isSubmitting}
-                  whileTap={{ scale: 0.97 }}
-                  transition={{ duration: 0.16, ease: [0.23, 1, 0.32, 1] }}
-                  className="flex-1 rounded-full bg-accent-red/90 hover:bg-accent-red px-4 py-2.5 text-sm font-bold text-white transition-colors disabled:opacity-35 disabled:cursor-not-allowed uppercase tracking-wide"
-                >
-                  {isSubmitting ? 'Scheduling...' : 'Schedule Trip'}
-                </motion.button>
-              </div>
-            </form>
+    <BaseModal
+      onCancel={onCancel}
+      isSubmitting={isSubmitting}
+      badgeText="Trip Management"
+      badgeColor="text-accent-red font-bold"
+      title="Schedule New Trip"
+      maxWidth="max-w-md"
+      ariaLabel="Schedule New Trip"
+    >
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        {/* Date & Time */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block mb-1 text-xs text-warmwhite/60 font-medium">Date</label>
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              required
+              disabled={isSubmitting}
+              className="w-full rounded-lg border border-chrome/15 bg-asphalt px-3 py-2 text-xs font-mono text-warmwhite outline-none focus:border-chrome/35"
+            />
+          </div>
+          <div>
+            <label className="block mb-1 text-xs text-warmwhite/60 font-medium">Time</label>
+            <input
+              type="time"
+              value={time}
+              onChange={(e) => setTime(e.target.value)}
+              required
+              disabled={isSubmitting}
+              className="w-full rounded-lg border border-chrome/15 bg-asphalt px-3 py-2 text-xs font-mono text-warmwhite outline-none focus:border-chrome/35"
+            />
           </div>
         </div>
-      </motion.div>
-    </AnimatePresence>
+
+        {/* Direction */}
+        <div>
+          <label className="block mb-1 text-xs text-warmwhite/60 font-medium">Direction</label>
+          <select
+            value={direction}
+            onChange={(e) => setDirection(e.target.value)}
+            disabled={isSubmitting}
+            className="w-full rounded-lg border border-chrome/15 bg-asphalt px-3 py-2.5 text-xs text-warmwhite outline-none focus:border-chrome/35"
+          >
+            {DIRECTIONS.map((dir) => (
+              <option key={dir} value={dir} className="bg-panel text-warmwhite">
+                {dir}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Route Preset Assignment */}
+        <div>
+          <label className="block mb-1 text-xs text-warmwhite/60 font-medium">Route Preset</label>
+          <select
+            value={selectedRouteId}
+            onChange={(e) => setSelectedRouteId(e.target.value)}
+            disabled={isSubmitting}
+            className="w-full rounded-lg border border-chrome/15 bg-asphalt px-3 py-2.5 text-xs text-warmwhite outline-none focus:border-chrome/35"
+          >
+            <option value="" className="bg-panel text-warmwhite/50">-- None --</option>
+            {presets.map((preset) => (
+              <option key={preset.id} value={preset.id} className="bg-panel text-warmwhite">
+                {preset.name} ({preset.stops.join(' → ')})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Total Seats & Trip Rate */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block mb-1 text-xs text-warmwhite/60 font-medium">Total Seats</label>
+            <input
+              type="number"
+              min={1}
+              max={8}
+              value={seatsTotal}
+              onChange={(e) => setSeatsTotal(parseInt(e.target.value, 10) || 4)}
+              required
+              disabled={isSubmitting}
+              className="w-full rounded-lg border border-chrome/15 bg-asphalt px-3 py-2 text-xs font-mono text-warmwhite outline-none focus:border-chrome/35"
+            />
+          </div>
+          <div>
+            <label className="block mb-1 text-xs text-warmwhite/60 font-medium">Trip Rate (Rs.)</label>
+            <input
+              type="number"
+              placeholder="Global default"
+              value={rateInput}
+              onChange={(e) => setRateInput(e.target.value)}
+              disabled={isSubmitting}
+              className="w-full rounded-lg border border-chrome/15 bg-asphalt px-3 py-2 text-xs font-mono text-warmwhite placeholder:text-warmwhite/30 outline-none focus:border-chrome/35"
+            />
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-3 mt-4">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={isSubmitting}
+            className="flex-1 rounded-full border border-chrome/15 px-4 py-2.5 text-sm text-warmwhite/55 hover:text-warmwhite/80 transition-colors duration-160 active:scale-[0.97] disabled:opacity-40"
+          >
+            Cancel
+          </button>
+          <motion.button
+            type="submit"
+            disabled={isSubmitting}
+            whileTap={{ scale: 0.97 }}
+            transition={{ duration: 0.16, ease: [0.23, 1, 0.32, 1] }}
+            className="flex-1 rounded-full bg-accent-red/90 hover:bg-accent-red px-4 py-2.5 text-sm font-bold text-white transition-colors disabled:opacity-35 disabled:cursor-not-allowed uppercase tracking-wide"
+          >
+            {isSubmitting ? 'Scheduling...' : 'Schedule Trip'}
+          </motion.button>
+        </div>
+      </form>
+    </BaseModal>
   );
 }
