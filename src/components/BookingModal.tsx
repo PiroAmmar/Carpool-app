@@ -43,7 +43,7 @@ export function BookingModal({ seatNumber, onConfirm, onCancel }: BookingModalPr
           htmlFor="pickup-location"
           className="flex items-center gap-1.5 mb-1.5 text-xs text-warmwhite/70 font-medium"
         >
-          <LocationIcon className="w-3.5 h-3.5 text-emerald-400" />
+          <LocationIcon className="w-3.5 h-3.5 text-accent-red" />
           <span>Pickup / Dropoff Location</span>
         </label>
         <input
@@ -55,7 +55,7 @@ export function BookingModal({ seatNumber, onConfirm, onCancel }: BookingModalPr
           maxLength={60}
           autoComplete="off"
           disabled={isSubmitting}
-          className="w-full rounded-lg border border-chrome/15 bg-asphalt px-4 py-3 text-sm text-warmwhite placeholder:text-warmwhite/25 outline-none transition-[border-color] duration-160 focus:border-emerald-500/50 disabled:opacity-50 font-mono"
+          className="w-full rounded-lg border border-chrome/15 bg-asphalt px-4 py-3 text-sm text-warmwhite placeholder:text-warmwhite/25 outline-none transition-[border-color] duration-160 focus:border-accent-red/50 disabled:opacity-50 font-mono"
         />
 
         <div className="flex gap-3 mt-4">

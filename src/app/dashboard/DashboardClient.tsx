@@ -66,22 +66,25 @@ export function DashboardClient({
   currentUserId,
   userName,
   userWhatsApp,
-  globalRate,
+  globalRate: initialGlobalRate,
   isAdmin,
 }: DashboardClientProps) {
+  const [trips, setTrips] = useState<Trip[]>(initialTrips);
+  const [routes, setRoutes] = useState<Route[]>(initialRoutes);
+  const [globalRate, setGlobalRate] = useState<number | null>(initialGlobalRate ?? null);
   const [activeTripId, setActiveTripId] = useState<string | null>(
     initialTripId || (initialTrips.length > 0 ? initialTrips[0].id : null)
   );
 
   const trip = useMemo(
-    () => initialTrips.find((t) => t.id === activeTripId) || initialTrips[0] || null,
-    [initialTrips, activeTripId]
+    () => trips.find((t) => t.id === activeTripId) || trips[0] || null,
+    [trips, activeTripId]
   );
 
   const route = useMemo(() => {
     if (!trip?.route_id) return null;
-    return initialRoutes.find((r) => r.id === trip.route_id) || null;
-  }, [initialRoutes, trip]);
+    return routes.find((r) => r.id === trip.route_id) || null;
+  }, [routes, trip]);
 
   const [bookings, setBookings] = useState<Booking[]>(initialBookings);
   const [selectedSeat, setSelectedSeat] = useState<number | null>(null);
@@ -89,55 +92,63 @@ export function DashboardClient({
 
   const supabase = useMemo(() => createClient(), []);
 
-  /* ── Reset bookings when trip changes (instant switch + immediate fetch) ── */
+  /* ── Reset local selection states when trip changes ────────────── */
   useEffect(() => {
-    if (!trip) return;
     setSelectedSeat(null);
     setBookingError(null);
+  }, [activeTripId]);
 
-    if (trip.id === initialTripId) {
-      setBookings(initialBookings);
-    } else {
-      supabase
-        .from('bookings')
-        .select('*')
-        .eq('trip_id', trip.id)
-        .then(({ data }) => {
-          if (data) setBookings(data as Booking[]);
-        });
-    }
-  }, [trip?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  /* ── Periodic & Realtime Sync ──────────────────────────────────── */
+  /* ── Periodic & Realtime Sync (Bookings, Settings & Trips) ───────── */
   useEffect(() => {
-    if (!trip) return;
+    const today = new Date().toISOString().split('T')[0];
 
-    // Fast fallback poll for live sync
     const fetchLatest = async () => {
-      const { data } = await supabase
+      // 1. Fetch latest bookings across trips
+      const { data: bData } = await supabase
         .from('bookings')
         .select('*')
-        .eq('trip_id', trip.id);
-      if (data) {
-        setBookings(data as Booking[]);
+        .order('created_at', { ascending: false });
+      if (bData) {
+        setBookings(bData as Booking[]);
+      }
+
+      // 2. Global Rate from settings
+      const { data: sData } = await supabase
+        .from('settings')
+        .select('rate')
+        .eq('id', 1)
+        .maybeSingle();
+      if (sData && sData.rate !== undefined) {
+        setGlobalRate(sData.rate);
+      }
+
+      // 3. Trips (scheduled)
+      const { data: tData } = await supabase
+        .from('trips')
+        .select('*')
+        .eq('status', 'scheduled')
+        .gte('trip_date', today)
+        .order('trip_date', { ascending: true })
+        .order('trip_time', { ascending: true });
+      if (tData) {
+        setTrips(tData as Trip[]);
       }
     };
 
     const interval = setInterval(fetchLatest, 2500);
 
-    const channel = supabase
-      .channel(`trip-bookings-${trip.id}`)
+    // Bookings channel
+    const bookingsChannel = supabase
+      .channel('dashboard-bookings')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'bookings', filter: `trip_id=eq.${trip.id}` },
+        { event: '*', schema: 'public', table: 'bookings' },
         (payload) => {
           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
             const updatedB = payload.new as Booking;
             setBookings((prev) => {
-              const filtered = prev.filter(
-                (b) => b.id !== updatedB.id && !(b.user_id?.toLowerCase() === updatedB.user_id?.toLowerCase() && b.trip_id === updatedB.trip_id)
-              );
-              return [...filtered, updatedB];
+              const filtered = prev.filter((b) => b.id !== updatedB.id);
+              return [updatedB, ...filtered];
             });
           } else if (payload.eventType === 'DELETE') {
             const deletedId = (payload.old as Partial<Booking>).id;
@@ -147,26 +158,88 @@ export function DashboardClient({
       )
       .subscribe();
 
+    // Settings channel
+    const settingsChannel = supabase
+      .channel('dashboard-settings')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'settings' },
+        (payload) => {
+          if (payload.new && (payload.new as any).rate !== undefined) {
+            setGlobalRate((payload.new as any).rate);
+          }
+        }
+      )
+      .subscribe();
+
+    // Trips channel
+    const tripsChannel = supabase
+      .channel('dashboard-trips')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'trips' },
+        (payload) => {
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const updatedT = payload.new as Trip;
+            setTrips((prev) => {
+              const existingIdx = prev.findIndex((t) => t.id === updatedT.id);
+              if (existingIdx >= 0) {
+                const next = [...prev];
+                next[existingIdx] = updatedT;
+                return next;
+              }
+              if (updatedT.status === 'scheduled') {
+                return [...prev, updatedT].sort((a, b) =>
+                  `${a.trip_date} ${a.trip_time}`.localeCompare(`${b.trip_date} ${b.trip_time}`)
+                );
+              }
+              return prev;
+            });
+          } else if (payload.eventType === 'DELETE') {
+            const deletedId = (payload.old as Partial<Trip>).id;
+            setTrips((prev) => prev.filter((t) => t.id !== deletedId));
+          }
+        }
+      )
+      .subscribe();
+
     return () => {
       clearInterval(interval);
-      supabase.removeChannel(channel);
+      supabase.removeChannel(bookingsChannel);
+      supabase.removeChannel(settingsChannel);
+      supabase.removeChannel(tripsChannel);
     };
-  }, [supabase, trip?.id]);
+  }, [supabase]);
 
-  /* ── Derived state ────────────────────────────────────────────── */
-  const activeBookings = useMemo(() => bookings.filter(b => b.status !== 'rejected'), [bookings]);
+  /* ── Derived state for currently active trip ───────────────────── */
+  const currentTripBookings = useMemo(
+    () => (trip ? bookings.filter((b) => b.trip_id === trip.id) : []),
+    [bookings, trip]
+  );
+
+  const activeBookings = useMemo(
+    () => currentTripBookings.filter((b) => b.status !== 'rejected'),
+    [currentTripBookings]
+  );
+
   const seatsTotal = trip?.seats_total ?? 4;
-  const seatsOpen = useMemo(() => seatsTotal - activeBookings.length, [seatsTotal, activeBookings.length]);
+  const seatsOpen = useMemo(
+    () => seatsTotal - activeBookings.length,
+    [seatsTotal, activeBookings.length]
+  );
 
-  // Find the user's booking. Prioritize active (approved/pending) over rejected.
+  // Find the user's booking on the currently active trip (most recent first)
   const myBooking = useMemo(() => {
+    if (!trip) return undefined;
     const uid = currentUserId?.toLowerCase();
-    const userBookings = bookings.filter(b => b.user_id?.toLowerCase() === uid);
+    const userBookings = currentTripBookings.filter(
+      (b) => b.user_id?.toLowerCase() === uid
+    );
     if (userBookings.length === 0) return undefined;
-    const active = userBookings.find(b => b.status !== 'rejected');
-    if (active) return active;
-    return [...userBookings].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
-  }, [bookings, currentUserId]);
+    return [...userBookings].sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    )[0];
+  }, [currentTripBookings, currentUserId, trip]);
 
   const canBook = useMemo(() => {
     if (!trip || trip.status !== 'scheduled') return false;
@@ -192,7 +265,7 @@ export function DashboardClient({
       created_at: new Date().toISOString(),
     };
 
-    setBookings((prev) => [...prev.filter((b) => b.id !== myBooking?.id), optimistic]);
+    setBookings((prev) => [optimistic, ...prev.filter((b) => b.id !== myBooking?.id)]);
     setSelectedSeat(null);
     setBookingError(null);
 
@@ -203,6 +276,7 @@ export function DashboardClient({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            tripId: trip.id,
             bookingId: myBooking.id,
             seatNumber,
             pickupLocation,
@@ -273,7 +347,7 @@ export function DashboardClient({
         userName={userName}
         userWhatsApp={userWhatsApp}
         currentUserId={currentUserId}
-        trips={initialTrips}
+        trips={trips}
         activeTripId={activeTripId}
         onSelectTrip={(tripId) => {
           setActiveTripId(tripId);
@@ -307,9 +381,9 @@ export function DashboardClient({
                         <p className="font-mono text-[10px] tracking-widest text-emerald-400 uppercase font-bold">
                           Ride Confirmed
                         </p>
-                        <p className="mt-0.5 text-sm font-semibold text-warmwhite">
-                          Seat {myBooking.seat_number} — Be ready by{' '}
-                          <span className="text-emerald-400 font-mono font-bold">
+                        <p className="mt-0.5 text-sm font-semibold text-warmwhite flex items-baseline gap-1.5 flex-wrap">
+                          <span>Seat {myBooking.seat_number} — Be ready by</span>
+                          <span className="text-lg font-mono font-extrabold text-emerald-400 tracking-tight">
                             {formatTime12h(myBooking.approved_time)}
                           </span>
                         </p>
@@ -323,7 +397,7 @@ export function DashboardClient({
                       <div className="pt-2.5 border-t border-emerald-500/15 flex items-center justify-between">
                         <LocationBadge location={myBooking.pickup_location} />
                         <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-400/60 font-medium">
-                          Pickup Point
+                          Pickup/Dropoff Point
                         </span>
                       </div>
                     )}
@@ -337,7 +411,7 @@ export function DashboardClient({
                         Request Declined
                       </p>
                       <p className="mt-0.5 text-xs text-warmwhite/70">
-                        Seat {myBooking.seat_number} is no longer available. You can re-book another open seat.
+                        Sorry for the inconvenience.
                       </p>
                     </div>
                     <div className="flex h-7 w-7 items-center justify-center rounded-full bg-accent-red/20 text-accent-red text-xs font-bold flex-shrink-0 ml-3">
@@ -364,7 +438,7 @@ export function DashboardClient({
                       <div className="pt-2.5 border-t border-signal-amber/15 flex items-center justify-between">
                         <LocationBadge location={myBooking.pickup_location} />
                         <span className="text-[10px] font-mono uppercase tracking-wider text-warmwhite/40">
-                          Pickup Point
+                          Pickup/Dropoff Point
                         </span>
                       </div>
                     )}

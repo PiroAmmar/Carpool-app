@@ -129,7 +129,7 @@ export function Sidebar({ userName, userWhatsApp, currentUserId, trips, activeTr
       </div>
 
       {/* Trips List */}
-      <div className="flex-1 overflow-y-auto py-4 px-3">
+      <div className="flex-1 overflow-y-auto py-4 px-3 custom-scrollbar">
         <p className="font-mono text-[10px] tracking-widest text-warmwhite/30 uppercase mb-3 px-3">
           Scheduled Trips
         </p>

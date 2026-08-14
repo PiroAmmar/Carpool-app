@@ -508,7 +508,7 @@ export function AdminClient({
       </AnimatePresence>
 
       {/* Navigation Tabs */}
-      <div className="flex items-center gap-1 overflow-x-auto pb-2 mb-6 border-b border-chrome/10">
+      <div className="flex items-center gap-1 overflow-x-auto pb-2 mb-6 border-b border-chrome/10 custom-scrollbar">
         {[
           { id: 'bookings', label: 'Bookings & Trip' },
           { id: 'trips', label: 'Trip Directory' },

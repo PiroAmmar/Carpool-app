@@ -22,6 +22,7 @@ export default async function DashboardPage(props: {
     routesRes,
     settingsRes,
     userProfileRes,
+    bookingsRes,
     resolvedSearchParams,
   ] = await Promise.all([
     supabase
@@ -49,6 +50,11 @@ export default async function DashboardPage(props: {
       .eq('id', user.id)
       .maybeSingle(),
 
+    supabase
+      .from('bookings')
+      .select('*')
+      .order('created_at', { ascending: false }),
+
     props.searchParams,
   ]);
 
@@ -62,19 +68,9 @@ export default async function DashboardPage(props: {
 
   const trips = (tripsRes.data as Trip[]) ?? [];
   const routes = (routesRes.data as Route[]) ?? [];
+  const bookings = (bookingsRes.data as Booking[]) ?? [];
   const queryTripId = resolvedSearchParams?.tripId as string | undefined;
   const initialTripId = queryTripId || (trips.length > 0 ? trips[0].id : null);
-  const activeTrip = trips.find((t) => t.id === initialTripId) || trips[0] || null;
-
-  // Fetch initial bookings for active trip if present
-  let initialBookings: Booking[] = [];
-  if (activeTrip) {
-    const { data: bData } = await supabase
-      .from('bookings')
-      .select('*')
-      .eq('trip_id', activeTrip.id);
-    initialBookings = (bData as Booking[]) ?? [];
-  }
 
   const userName: string =
     (user.user_metadata?.full_name as string | undefined) ??
@@ -90,7 +86,7 @@ export default async function DashboardPage(props: {
       initialTrips={trips}
       initialRoutes={routes}
       initialTripId={initialTripId}
-      initialBookings={initialBookings}
+      initialBookings={bookings}
       currentUserId={user.id}
       userName={userName}
       userWhatsApp={userWhatsApp}

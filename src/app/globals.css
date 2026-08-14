@@ -40,6 +40,68 @@ body {
   color: var(--color-warmwhite);
 }
 
+/* ── Sleek Custom Scrollbar — Accent Red Instrument Aesthetic ── */
+/* Standard / Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(239, 68, 68, 0.4) transparent;
+}
+
+/* WebKit / Chromium / Edge / Safari */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(239, 68, 68, 0.38);
+  border-radius: 9999px;
+  border: 1px solid transparent;
+  background-clip: padding-box;
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.2);
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(239, 68, 68, 0.85);
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.45);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Custom scrollbar utility for sleek drawers & lists */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(239, 68, 68, 0.45) transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(239, 68, 68, 0.45);
+  border-radius: 9999px;
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.25);
+  transition: background-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(239, 68, 68, 0.95);
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.6);
+}
+
 /* Fixed grain overlay — physical instrument-panel texture, not decoration.
    pointer-events-none + fixed so it never repaints on scroll (perf guardrail). */
 .grain-overlay {

@@ -29,6 +29,27 @@ export function ContactCard() {
           </span>
         </a>
       </div>
+
+      {/* Bug reporting disclaimer */}
+      <div className="mt-3.5 flex items-start gap-2.5 rounded-lg border border-chrome/10 bg-panel/40 px-3 py-2.5">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="w-3.5 h-3.5 text-accent-red flex-shrink-0 mt-0.5"
+          aria-hidden="true"
+        >
+          <circle cx="12" cy="12" r="10" />
+          <line x1="12" y1="8" x2="12" y2="12" />
+          <line x1="12" y1="16" x2="12.01" y2="16" />
+        </svg>
+        <p className="text-[11px] text-warmwhite/55 leading-snug">
+          In case of any bugs or issues, please take a screenshot and send it on WhatsApp so it can be fixed promptly.
+        </p>
+      </div>
     </div>
   );
 }

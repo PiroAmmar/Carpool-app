@@ -4,7 +4,7 @@ interface LocationIconProps {
   className?: string;
 }
 
-export function LocationIcon({ className = 'w-3.5 h-3.5 text-emerald-400 flex-shrink-0' }: LocationIconProps) {
+export function LocationIcon({ className = 'w-3.5 h-3.5 text-accent-red flex-shrink-0' }: LocationIconProps) {
   return (
     <svg
       viewBox="0 0 24 24"
@@ -32,12 +32,12 @@ export function LocationBadge({ location, className = '', size = 'md' }: Locatio
   const isSm = size === 'sm';
   return (
     <div
-      className={`inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/25 font-mono shadow-sm transition-colors ${
+      className={`inline-flex items-center gap-1.5 rounded-lg bg-accent-red/10 border border-accent-red/25 font-mono shadow-sm transition-colors duration-160 ${
         isSm ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-1 text-xs'
       } ${className}`}
     >
-      <LocationIcon className={isSm ? 'w-3 h-3 text-emerald-400 flex-shrink-0' : 'w-3.5 h-3.5 text-emerald-400 flex-shrink-0'} />
-      <span className="font-semibold text-emerald-300 truncate">{location}</span>
+      <LocationIcon className={isSm ? 'w-3 h-3 text-accent-red flex-shrink-0' : 'w-3.5 h-3.5 text-accent-red flex-shrink-0'} />
+      <span className="font-semibold text-rose-200 tracking-tight truncate">{location}</span>
     </div>
   );
 }
