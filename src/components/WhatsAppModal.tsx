@@ -12,8 +12,8 @@ interface WhatsAppModalProps {
 
 /**
  * Extracts pure 10-digit local number without country code or leading zero.
- * e.g. "+923342121401" -> "3342121401"
- * e.g. "03342121401"   -> "3342121401"
+ * e.g. "+923342121401" → "3342121401"
+ * e.g. "03342121401"   → "3342121401"
  */
 function extractLocalDigits(raw: string | null | undefined): string {
   if (!raw) return '';

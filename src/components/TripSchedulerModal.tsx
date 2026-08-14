@@ -103,7 +103,7 @@ export function TripSchedulerModal({
           >
             {DIRECTIONS.map((dir) => (
               <option key={dir} value={dir} className="bg-panel text-warmwhite">
-                {dir}
+                {dir.replace(/->/g, '→')}
               </option>
             ))}
           </select>

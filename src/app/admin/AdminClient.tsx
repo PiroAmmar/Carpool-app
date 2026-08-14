@@ -31,6 +31,11 @@ type Tab = 'bookings' | 'trips' | 'presets' | 'passengers' | 'settings';
 
 type TripStatusFilterType = 'all' | 'scheduled' | 'completed' | 'cancelled';
 
+function formatDirection(dir?: string | null): string {
+  if (!dir) return '';
+  return dir.replace(/->/g, '→');
+}
+
 interface TripFilterToggleProps {
   scheduledCount: number;
   completedCount: number;
@@ -351,11 +356,22 @@ export function AdminClient({
   /* ── Route Preset Handlers ─────────────────────────────── */
   async function handleSavePreset(data: { name: string; stops: string[] }): Promise<boolean> {
     const preset = presetModalState.preset;
-    const dupe = routePresets.some(
+    const normStops = (stops: string[]) => stops.map((s) => s.trim().toLowerCase()).join('|');
+    const newStopsKey = normStops(data.stops);
+
+    const nameDupe = routePresets.some(
       (r) => r.id !== preset?.id && r.name.trim().toLowerCase() === data.name.trim().toLowerCase()
     );
-    if (dupe) {
+    if (nameDupe) {
       showNotification(`Preset "${data.name.trim()}" already exists`);
+      return false;
+    }
+
+    const routeDupe = routePresets.find(
+      (r) => r.id !== preset?.id && normStops(r.stops) === newStopsKey
+    );
+    if (routeDupe) {
+      showNotification(`Same route already saved as "${routeDupe.name}"`);
       return false;
     }
 
@@ -528,7 +544,7 @@ export function AdminClient({
                           <optgroup label={`— SCHEDULED TRIPS —${overflow(scheduledTrips) ? ` (showing ${TRIP_GROUP_CAP} of ${scheduledTrips.length}, search to see more)` : ''}`}>
                             {cap(scheduledTrips).map((t) => (
                               <option key={t.id} value={t.id}>
-                                {t.trip_date} · {t.trip_time} ({t.direction || 'No direction'})
+                                {t.trip_date} · {t.trip_time} ({formatDirection(t.direction) || 'No direction'})
                               </option>
                             ))}
                           </optgroup>
@@ -537,7 +553,7 @@ export function AdminClient({
                           <optgroup label={`— COMPLETED TRIPS —${overflow(completedTrips) ? ` (showing ${TRIP_GROUP_CAP} of ${completedTrips.length}, search to see more)` : ''}`}>
                             {cap(completedTrips).map((t) => (
                               <option key={t.id} value={t.id}>
-                                [COMPLETED] {t.trip_date} · {t.trip_time} ({t.direction || 'No direction'})
+                                [COMPLETED] {t.trip_date} · {t.trip_time} ({formatDirection(t.direction) || 'No direction'})
                               </option>
                             ))}
                           </optgroup>
@@ -546,7 +562,7 @@ export function AdminClient({
                           <optgroup label={`— CANCELLED TRIPS —${overflow(cancelledTrips) ? ` (showing ${TRIP_GROUP_CAP} of ${cancelledTrips.length}, search to see more)` : ''}`}>
                             {cap(cancelledTrips).map((t) => (
                               <option key={t.id} value={t.id}>
-                                [CANCELLED] {t.trip_date} · {t.trip_time} ({t.direction || 'No direction'})
+                                [CANCELLED] {t.trip_date} · {t.trip_time} ({formatDirection(t.direction) || 'No direction'})
                               </option>
                             ))}
                           </optgroup>
@@ -749,7 +765,7 @@ export function AdminClient({
                         </span>
                       </div>
                       <p className="text-xs text-accent-red font-medium truncate">
-                        {t.direction || 'No direction'}
+                        {formatDirection(t.direction) || 'No direction'}
                       </p>
                       <p className="text-[11px] font-mono text-warmwhite/50">
                         Seats: {t.seats_total} · Rate: {t.rate ? `Rs. ${t.rate}` : 'Default'}

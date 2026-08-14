@@ -26,7 +26,7 @@ export function RouteDisplay({ stops, direction }: RouteDisplayProps) {
         <p className="text-center text-sm font-bold text-accent-red mb-3 break-words px-2">
           {/* Arrows rendered as separate white spans — plain text here would
               inherit the red heading color and disappear against the route line. */}
-          {direction.split('->').map((segment, i, arr) => (
+          {direction.split(/->|→/).map((segment, i, arr) => (
             <span key={i}>
               {segment.trim()}
               {i < arr.length - 1 && <span className="text-white mx-1.5">→</span>}
