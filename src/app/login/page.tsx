@@ -13,16 +13,16 @@ const ERROR_MESSAGES: Record<string, string> = {
 
 function LoginForm() {
   const searchParams = useSearchParams();
-  const [error, setError] = useState<string | null>(null);
+  const errorCode = searchParams.get("error");
+  const initialError = errorCode
+    ? ERROR_MESSAGES[errorCode] ?? "Something went wrong. Give it another try."
+    : null;
+  const [error, setError] = useState<string | null>(initialError);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const code = searchParams.get("error");
-    if (code) {
-      setError(ERROR_MESSAGES[code] ?? "Something went wrong. Give it another try.");
-      const reason = searchParams.get("reason");
-      if (reason) console.error("[login] auth error reason:", decodeURIComponent(reason));
-    }
+    const reason = searchParams.get("reason");
+    if (reason) console.error("[login] auth error reason:", decodeURIComponent(reason));
   }, [searchParams]);
 
   async function signInWithGoogle() {

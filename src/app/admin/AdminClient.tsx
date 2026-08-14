@@ -125,11 +125,9 @@ export function AdminClient({
   }, [searchedTrips, tripStatusFilter]);
 
   // Keep selectedTripId valid when status filter changes
-  useEffect(() => {
-    if (filteredTripsForDropdown.length > 0 && !filteredTripsForDropdown.some(t => t.id === selectedTripId)) {
-      setSelectedTripId(filteredTripsForDropdown[0].id);
-    }
-  }, [tripStatusFilter, filteredTripsForDropdown, selectedTripId]);
+  if (filteredTripsForDropdown.length > 0 && !filteredTripsForDropdown.some((t) => t.id === selectedTripId)) {
+    setSelectedTripId(filteredTripsForDropdown[0].id);
+  }
 
   // Modals state
   const [approvingBooking, setApprovingBooking] = useState<Booking | null>(null);

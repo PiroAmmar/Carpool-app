@@ -6,7 +6,7 @@ interface HudBarProps {
   rate: number | null;
 }
 
-export function HudBar({ rate }: HudBarProps) {
+export function HudBar({}: HudBarProps) {
   return (
     <header className="flex items-center justify-end px-6 py-3 border-b border-chrome/10 md:justify-between">
       {/* On mobile, sidebar toggle is on the left, so we right-align this. On desktop, justify-between handles it. */}

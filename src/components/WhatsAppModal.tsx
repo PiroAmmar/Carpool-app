@@ -66,8 +66,8 @@ export function WhatsAppModal({
       setIsSubmitting(true);
       setError(null);
       await onSave(fullFormattedNumber);
-    } catch (err: any) {
-      setError(err?.message || 'Failed to save number.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to save number.');
       setIsSubmitting(false);
     }
   }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -23,10 +23,12 @@ export function Sidebar({ userName, userWhatsApp, currentUserId, trips, activeTr
   const [isOpen, setIsOpen] = useState(false);
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
   const [whatsappNum, setWhatsappNum] = useState<string | null>(userWhatsApp || null);
+  const [prevWhatsApp, setPrevWhatsApp] = useState(userWhatsApp);
 
-  useEffect(() => {
+  if (prevWhatsApp !== userWhatsApp) {
+    setPrevWhatsApp(userWhatsApp);
     setWhatsappNum(userWhatsApp || null);
-  }, [userWhatsApp]);
+  }
 
   async function handleSaveWhatsApp(newNum: string) {
     if (!currentUserId) return;

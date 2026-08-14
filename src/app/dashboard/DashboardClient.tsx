@@ -70,7 +70,7 @@ export function DashboardClient({
   isAdmin,
 }: DashboardClientProps) {
   const [trips, setTrips] = useState<Trip[]>(initialTrips);
-  const [routes, setRoutes] = useState<Route[]>(initialRoutes);
+  const [routes] = useState<Route[]>(initialRoutes);
   const [globalRate, setGlobalRate] = useState<number | null>(initialGlobalRate ?? null);
   const [activeTripId, setActiveTripId] = useState<string | null>(
     initialTripId || (initialTrips.length > 0 ? initialTrips[0].id : null)
@@ -92,11 +92,12 @@ export function DashboardClient({
 
   const supabase = useMemo(() => createClient(), []);
 
-  /* ── Reset local selection states when trip changes ────────────── */
-  useEffect(() => {
+  const [prevTripId, setPrevTripId] = useState(activeTripId);
+  if (prevTripId !== activeTripId) {
+    setPrevTripId(activeTripId);
     setSelectedSeat(null);
     setBookingError(null);
-  }, [activeTripId]);
+  }
 
   /* ── Periodic & Realtime Sync (Bookings, Settings & Trips) ───────── */
   useEffect(() => {
@@ -165,8 +166,8 @@ export function DashboardClient({
         'postgres_changes',
         { event: '*', schema: 'public', table: 'settings' },
         (payload) => {
-          if (payload.new && (payload.new as any).rate !== undefined) {
-            setGlobalRate((payload.new as any).rate);
+          if (payload.new && typeof payload.new === 'object' && 'rate' in payload.new) {
+            setGlobalRate(Number((payload.new as { rate?: number }).rate));
           }
         }
       )
@@ -295,9 +296,10 @@ export function DashboardClient({
             prev.map((b) => (b.id === optimisticId ? (json.booking as Booking) : b))
           );
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         setBookings((prev) => prev.filter((b) => b.id !== optimisticId));
-        setBookingError(err.message || 'Network error while re-booking.');
+        const msg = err instanceof Error ? err.message : 'Network error while re-booking.';
+        setBookingError(msg);
       }
       return;
     }
@@ -381,9 +383,9 @@ export function DashboardClient({
                         <p className="font-mono text-[10px] tracking-widest text-emerald-400 uppercase font-bold">
                           Ride Confirmed
                         </p>
-                        <p className="mt-0.5 text-sm font-semibold text-warmwhite flex items-baseline gap-1.5 flex-wrap">
-                          <span>Seat {myBooking.seat_number} — Be ready by</span>
-                          <span className="text-lg font-mono font-extrabold text-emerald-400 tracking-tight">
+                        <p className="mt-0.5 text-sm font-semibold text-warmwhite">
+                          Seat {myBooking.seat_number} — Be ready by{' '}
+                          <span className="text-emerald-400 font-mono font-bold">
                             {formatTime12h(myBooking.approved_time)}
                           </span>
                         </p>
@@ -428,7 +430,7 @@ export function DashboardClient({
                           Request Pending
                         </p>
                         <p className="mt-0.5 text-sm font-semibold text-warmwhite">
-                          Seat {myBooking.seat_number} · Waiting for Ammar
+                          Seat {myBooking.seat_number} · Waiting for Ammar&apos;s Approval
                         </p>
                       </div>
                       <div className="animate-pulse h-2.5 w-2.5 rounded-full bg-signal-amber shadow-[0_0_8px_rgba(224,165,38,0.6)] flex-shrink-0 ml-4" />

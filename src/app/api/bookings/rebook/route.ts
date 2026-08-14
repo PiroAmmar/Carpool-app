@@ -80,8 +80,9 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ success: true, booking: newBooking });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("[rebook api] Exception:", err);
-    return NextResponse.json({ error: err.message || "Internal server error" }, { status: 500 });
+    const msg = err instanceof Error ? err.message : "Internal server error";
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
