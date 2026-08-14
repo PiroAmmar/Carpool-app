@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { BaseModal } from './BaseModal';
+import { LocationIcon } from './LocationBadge';
 
 interface BookingModalProps {
   seatNumber: number;
@@ -40,20 +41,21 @@ export function BookingModal({ seatNumber, onConfirm, onCancel }: BookingModalPr
       <form onSubmit={handleSubmit}>
         <label
           htmlFor="pickup-location"
-          className="block mb-1.5 text-xs text-warmwhite/50"
+          className="flex items-center gap-1.5 mb-1.5 text-xs text-warmwhite/70 font-medium"
         >
-          Pickup/Dropoff location
+          <LocationIcon className="w-3.5 h-3.5 text-emerald-400" />
+          <span>Pickup / Dropoff Location</span>
         </label>
         <input
           ref={inputRef}
           id="pickup-location"
           value={pickup}
           onChange={e => setPickup(e.target.value)}
-          placeholder="e.g. Fivestar"
+          placeholder="e.g. Fivestar, Waterpump, Gulshan"
           maxLength={60}
           autoComplete="off"
           disabled={isSubmitting}
-          className="w-full rounded-lg border border-chrome/15 bg-asphalt px-4 py-3 text-sm text-warmwhite placeholder:text-warmwhite/25 outline-none transition-[border-color] duration-160 focus:border-chrome/35 disabled:opacity-50"
+          className="w-full rounded-lg border border-chrome/15 bg-asphalt px-4 py-3 text-sm text-warmwhite placeholder:text-warmwhite/25 outline-none transition-[border-color] duration-160 focus:border-emerald-500/50 disabled:opacity-50 font-mono"
         />
 
         <div className="flex gap-3 mt-4">

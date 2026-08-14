@@ -87,31 +87,45 @@ export function Sidebar({ userName, userWhatsApp, currentUserId, trips, activeTr
               {userName}
             </p>
           </div>
-          {isAdmin && (
+          <div className="flex items-center gap-2">
+            {isAdmin && (
+              <button
+                onClick={() => {
+                  if (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')) {
+                    router.push('/dashboard?view=passenger');
+                  } else {
+                    router.push('/admin');
+                  }
+                }}
+                className="flex-shrink-0 px-2.5 py-1 rounded border border-accent-red/30 bg-accent-red/10 text-[11px] font-mono font-semibold text-accent-red hover:bg-accent-red/20 transition-colors"
+              >
+                {typeof window !== 'undefined' && window.location.pathname.startsWith('/admin') ? 'Passenger View' : 'Admin Panel'}
+              </button>
+            )}
             <button
-              onClick={() => {
-                setIsOpen(false);
-                router.push('/admin');
-              }}
-              className="flex-shrink-0 ml-2 px-2.5 py-1 rounded border border-accent-red/30 bg-accent-red/10 text-[11px] font-mono font-semibold text-accent-red hover:bg-accent-red/20 transition-colors"
+              onClick={() => setIsOpen(false)}
+              className="p-1 rounded-md text-warmwhite/40 hover:text-warmwhite transition-colors text-lg leading-none"
+              aria-label="Close sidebar"
             >
-              Admin Panel
+              ✕
             </button>
-          )}
+          </div>
         </div>
 
-        {/* WhatsApp Configuration Button */}
-        <button
-          onClick={() => setIsWhatsAppModalOpen(true)}
-          className="w-full flex items-center justify-between rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-400 hover:bg-emerald-500/20 transition-colors font-mono"
-        >
-          <span className="truncate">
-            {whatsappNum ? `WA: ${whatsappNum}` : 'Configure WhatsApp'}
-          </span>
-          <span className="text-[10px] uppercase font-bold underline opacity-80 flex-shrink-0 ml-1">
-            {whatsappNum ? 'Edit' : '+ Set'}
-          </span>
-        </button>
+        {/* WhatsApp Configuration Button - only for passengers, hidden on admin panel */}
+        {!isAdmin && (
+          <button
+            onClick={() => setIsWhatsAppModalOpen(true)}
+            className="w-full flex items-center justify-between rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-400 hover:bg-emerald-500/20 transition-colors font-mono"
+          >
+            <span className="truncate">
+              {whatsappNum ? `WA: ${whatsappNum}` : 'Configure WhatsApp'}
+            </span>
+            <span className="text-[10px] uppercase font-bold underline opacity-80 flex-shrink-0 ml-1">
+              {whatsappNum ? 'Edit' : '+ Set'}
+            </span>
+          </button>
+        )}
       </div>
 
       {/* Trips List */}
@@ -140,7 +154,6 @@ export function Sidebar({ userName, userWhatsApp, currentUserId, trips, activeTr
                     } else {
                       router.push(`?tripId=${trip.id}`);
                     }
-                    setIsOpen(false);
                   }}
                   className={`relative flex flex-col items-start pl-4 pr-3 py-2.5 rounded-lg transition-colors duration-160 text-left active:scale-[0.98] ${isActive
                       ? 'bg-accent-red/10 text-accent-red'
@@ -228,7 +241,7 @@ export function Sidebar({ userName, userWhatsApp, currentUserId, trips, activeTr
         )}
       </AnimatePresence>
 
-      {isWhatsAppModalOpen && (
+      {!isAdmin && isWhatsAppModalOpen && (
         <WhatsAppModal
           initialNumber={whatsappNum}
           onSave={handleSaveWhatsApp}

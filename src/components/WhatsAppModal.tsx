@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { BaseModal } from './BaseModal';
 
@@ -35,12 +35,6 @@ export function WhatsAppModal({
   const [digits, setDigits] = useState(() => extractLocalDigits(initialNumber));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    const t = setTimeout(() => inputRef.current?.focus(), 150);
-    return () => clearTimeout(t);
-  }, []);
 
   function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
     const raw = e.target.value;
@@ -107,7 +101,7 @@ export function WhatsAppModal({
             +92
           </span>
           <input
-            ref={inputRef}
+            autoFocus
             id="whatsapp-input"
             type="text"
             inputMode="numeric"

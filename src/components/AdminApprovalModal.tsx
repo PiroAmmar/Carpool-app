@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { BaseModal } from './BaseModal';
+import { LocationBadge } from './LocationBadge';
 
 interface AdminApprovalModalProps {
   passengerName: string;
@@ -23,12 +24,6 @@ export function AdminApprovalModal({
 }: AdminApprovalModalProps) {
   const [time, setTime] = useState(defaultTime);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    const t = setTimeout(() => inputRef.current?.focus(), 150);
-    return () => clearTimeout(t);
-  }, []);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -44,7 +39,11 @@ export function AdminApprovalModal({
       badgeText="Approve Request"
       badgeColor="text-emerald-400 font-bold"
       title={`Seat ${seatNumber} — ${passengerName}`}
-      subtitle={`↑ Pickup: ${pickupLocation}`}
+      subtitle={
+        <div className="mt-1">
+          <LocationBadge location={pickupLocation} size="sm" />
+        </div>
+      }
       ariaLabel="Approve Booking"
     >
       <form onSubmit={handleSubmit}>
@@ -55,7 +54,7 @@ export function AdminApprovalModal({
           Set Pickup / Arrival Time
         </label>
         <input
-          ref={inputRef}
+          autoFocus
           id="approval-time"
           value={time}
           onChange={(e) => setTime(e.target.value)}

@@ -21,33 +21,9 @@ export default async function AdminPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  /* ── Check user role in public.users ────────────────────────── */
   const ADMIN_EMAILS = ['piroammar388@gmail.com'];
   const userEmail = (user.email ?? '').toLowerCase();
-
-  const { data: currentUserProfile } = await supabase
-    .from('users')
-    .select('role')
-    .eq('id', user.id)
-    .maybeSingle();
-
   const isAdminEmail = ADMIN_EMAILS.includes(userEmail);
-  const isAdmin = isAdminEmail || currentUserProfile?.role === 'admin';
-
-  if (!isAdmin) {
-    redirect('/dashboard');
-  }
-
-  // Ensure role is recorded as 'admin' in public.users table if logged in as admin email
-  if (isAdminEmail && currentUserProfile?.role !== 'admin') {
-    const fullName = user.user_metadata?.full_name ?? user.user_metadata?.name ?? null;
-    await supabase.from('users').upsert({
-      id: user.id,
-      email: user.email!,
-      full_name: fullName,
-      role: 'admin'
-    }, { onConflict: 'id' });
-  }
 
   /* ── Parallel Data Fetching for Admin Dashboard ──────────────── */
   const [
@@ -56,6 +32,7 @@ export default async function AdminPage() {
     routesRes,
     usersRes,
     settingsRes,
+    userProfileRes,
   ] = await Promise.all([
     supabase
       .from('trips')
@@ -83,7 +60,18 @@ export default async function AdminPage() {
       .select('rate')
       .eq('id', 1)
       .maybeSingle(),
+
+    supabase
+      .from('users')
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle(),
   ]);
+
+  const isAdmin = isAdminEmail || userProfileRes.data?.role === 'admin';
+  if (!isAdmin) {
+    redirect('/dashboard');
+  }
 
   const trips = (tripsRes.data as Trip[]) ?? [];
   const bookings = (bookingsRes.data as Booking[]) ?? [];

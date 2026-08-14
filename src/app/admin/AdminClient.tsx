@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { AdminApprovalModal } from '@/components/AdminApprovalModal';
 import { TripSchedulerModal } from '@/components/TripSchedulerModal';
 import { RoutePresetModal } from '@/components/RoutePresetModal';
+import { LocationBadge } from '@/components/LocationBadge';
 import type { Trip, Booking, Route } from '@/types';
 
 interface UserRecord {
@@ -318,6 +319,25 @@ export function AdminClient({
     }
   }
 
+  /* ── Reset Trip Rate to Global Default ─────────────────── */
+  async function handleResetTripRate(tripId: string) {
+    setTrips((prev) =>
+      prev.map((t) => (t.id === tripId ? { ...t, rate: null } : t))
+    );
+
+    const { error } = await supabase
+      .from('trips')
+      .update({ rate: null })
+      .eq('id', tripId);
+
+    if (error) {
+      console.error('[admin] trip rate reset failed:', error.message);
+      showNotification(`Failed to reset rate: ${error.message}`);
+    } else {
+      showNotification('Trip rate reset to global default');
+    }
+  }
+
   /* ── Schedule Trip Handler ─────────────────────────────── */
   async function handleScheduleTrip(data: {
     trip_date: string;
@@ -435,22 +455,40 @@ export function AdminClient({
       .update({ rate: newRate })
       .eq('id', 1);
 
-    if (!updateErr) {
-      showNotification('Global rate updated successfully!');
+    let settingsOk = !updateErr;
+
+    if (updateErr) {
+      // Fallback INSERT if row id=1 did not exist yet
+      const { error: insertErr } = await supabase
+        .from('settings')
+        .insert({ id: 1, rate: newRate });
+
+      if (insertErr) {
+        console.error('[admin] rate update error:', updateErr?.message, insertErr?.message);
+        showNotification(`Failed to update rate: ${updateErr?.message || insertErr?.message}`);
+        return;
+      }
+      settingsOk = true;
+    }
+
+    // Clear any per-trip rate overrides on scheduled trips so they
+    // immediately inherit the new global rate instead of a stale one.
+    setTrips((prev) =>
+      prev.map((t) => (t.status === 'scheduled' ? { ...t, rate: null } : t))
+    );
+
+    const { error: clearErr } = await supabase
+      .from('trips')
+      .update({ rate: null })
+      .eq('status', 'scheduled');
+
+    if (clearErr) {
+      console.error('[admin] trip rate clear failed:', clearErr.message);
+      showNotification('Global rate saved, but failed to clear trip overrides');
       return;
     }
 
-    // Fallback INSERT if row id=1 did not exist yet
-    const { error: insertErr } = await supabase
-      .from('settings')
-      .insert({ id: 1, rate: newRate });
-
-    if (insertErr) {
-      console.error('[admin] rate update error:', updateErr?.message, insertErr?.message);
-      showNotification(`Failed to update rate: ${updateErr?.message || insertErr?.message}`);
-    } else {
-      showNotification('Global rate updated successfully!');
-    }
+    if (settingsOk) showNotification('Global rate updated for all active trips!');
   }
 
   return (
@@ -646,9 +684,9 @@ export function AdminClient({
                               {passengerName}
                             </span>
                           </div>
-                          <p className="text-xs text-warmwhite/60 font-mono truncate">
-                            ↑ {b.pickup_location}
-                          </p>
+                          <div className="my-0.5">
+                            <LocationBadge location={b.pickup_location} size="sm" />
+                          </div>
                           {passenger?.whatsapp || passenger?.phone ? (
                             <a
                               href={`https://wa.me/${(passenger.whatsapp || passenger.phone || '').replace(/[^\d+]/g, '')}`}
@@ -773,6 +811,14 @@ export function AdminClient({
                     </div>
 
                     <div className="flex items-center gap-2">
+                      {t.status === 'scheduled' && t.rate !== null && t.rate !== undefined && (
+                        <button
+                          onClick={() => handleResetTripRate(t.id)}
+                          className="px-2.5 py-1 rounded text-xs bg-chrome/10 text-warmwhite/60 hover:bg-chrome/20"
+                        >
+                          Reset Rate
+                        </button>
+                      )}
                       {t.status === 'scheduled' && (
                         <>
                           <button
