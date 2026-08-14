@@ -88,6 +88,7 @@ export default async function DashboardPage(props: {
       initialTripId={initialTripId}
       initialBookings={bookings}
       currentUserId={user.id}
+      currentUserEmail={user.email ?? ''}
       userName={userName}
       userWhatsApp={userWhatsApp}
       globalRate={globalRate}

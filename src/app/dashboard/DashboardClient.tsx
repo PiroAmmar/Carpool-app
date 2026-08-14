@@ -18,6 +18,7 @@ interface DashboardClientProps {
   initialTripId: string | null;
   initialBookings: Booking[];
   currentUserId: string;
+  currentUserEmail: string;
   userName: string;
   userWhatsApp?: string | null;
   globalRate?: number | null;
@@ -64,6 +65,7 @@ export function DashboardClient({
   initialTripId,
   initialBookings,
   currentUserId,
+  currentUserEmail,
   userName,
   userWhatsApp,
   globalRate: initialGlobalRate,
@@ -254,7 +256,7 @@ export function DashboardClient({
   async function handleBook(seatNumber: number, pickupLocation: string) {
     if (!trip) return;
 
-    const optimisticId = `opt-${Date.now()}`;
+    const optimisticId = `opt-${typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : seatNumber}`;
     const optimistic: Booking = {
       id: optimisticId,
       trip_id: trip.id,
@@ -295,6 +297,7 @@ export function DashboardClient({
           setBookings((prev) =>
             prev.map((b) => (b.id === optimisticId ? (json.booking as Booking) : b))
           );
+          notifyAdminOfBooking(seatNumber, pickupLocation);
         }
       } catch (err: unknown) {
         setBookings((prev) => prev.filter((b) => b.id !== optimisticId));
@@ -328,7 +331,25 @@ export function DashboardClient({
       setBookings((prev) =>
         prev.map((b) => (b.id === optimisticId ? (newBooking as Booking) : b))
       );
+      notifyAdminOfBooking(seatNumber, pickupLocation);
     }
+  }
+
+  // Fire-and-forget — booking already committed, email failure shouldn't block the UI.
+  function notifyAdminOfBooking(seatNumber: number, pickupLocation: string) {
+    if (!trip) return;
+    fetch('/api/notify/booking', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        passengerName: userName,
+        passengerEmail: currentUserEmail,
+        pickupLocation,
+        seatNumber,
+        tripDate: trip.trip_date,
+        tripTime: trip.trip_time,
+      }),
+    }).catch((err) => console.error('[notify] booking email failed:', err));
   }
 
   function handleBookClick() {

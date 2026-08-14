@@ -36,12 +36,24 @@ export function TripSchedulerModal({
   const [direction, setDirection] = useState(DIRECTIONS[0]);
   const [selectedRouteId, setSelectedRouteId] = useState<string>(presets[0]?.id || '');
   const [rateInput, setRateInput] = useState('');
+  const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const todayStr = new Date().toISOString().split('T')[0];
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!date || !time || isSubmitting) return;
 
+    const selectedDateTime = new Date(`${date}T${time}`);
+    const now = new Date();
+
+    if (selectedDateTime < now) {
+      setError('Cannot schedule a trip in the past. Please select today or a future date and time.');
+      return;
+    }
+
+    setError(null);
     setIsSubmitting(true);
     const numericRate = rateInput.trim() ? parseFloat(rateInput.trim()) : null;
 
@@ -72,8 +84,12 @@ export function TripSchedulerModal({
             <label className="block mb-1 text-xs text-warmwhite/60 font-medium">Date</label>
             <input
               type="date"
+              min={todayStr}
               value={date}
-              onChange={(e) => setDate(e.target.value)}
+              onChange={(e) => {
+                setDate(e.target.value);
+                if (error) setError(null);
+              }}
               required
               disabled={isSubmitting}
               className="w-full rounded-lg border border-chrome/15 bg-asphalt px-3 py-2 text-xs font-mono text-warmwhite outline-none focus:border-chrome/35"
@@ -84,7 +100,10 @@ export function TripSchedulerModal({
             <input
               type="time"
               value={time}
-              onChange={(e) => setTime(e.target.value)}
+              onChange={(e) => {
+                setTime(e.target.value);
+                if (error) setError(null);
+              }}
               required
               disabled={isSubmitting}
               className="w-full rounded-lg border border-chrome/15 bg-asphalt px-3 py-2 text-xs font-mono text-warmwhite outline-none focus:border-chrome/35"
@@ -155,8 +174,19 @@ export function TripSchedulerModal({
           </div>
         </div>
 
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="rounded-lg border border-accent-red/40 bg-accent-red/10 px-3 py-2 text-xs text-accent-red text-center font-medium font-mono"
+            role="alert"
+          >
+            {error}
+          </motion.div>
+        )}
+
         {/* Actions */}
-        <div className="flex gap-3 mt-4">
+        <div className="flex gap-3 mt-2">
           <button
             type="button"
             onClick={onCancel}

@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { createClient as createAdminClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
@@ -31,12 +31,7 @@ export async function POST(request: Request) {
     }
 
     const userId = authData.user.id;
-
-    // Use admin service role client if key available to bypass RLS restrictions
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    const client = serviceKey
-      ? createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceKey)
-      : supabase;
+    const client = createAdminClient();
 
     // If bookingId was provided, update that booking row directly
     if (bookingId) {

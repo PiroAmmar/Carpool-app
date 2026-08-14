@@ -256,10 +256,50 @@ export function AdminClient({
       showNotification(`Failed to approve: ${error.message}`);
     } else {
       showNotification('Booking approved successfully');
+      notifyPassengerOfApproval(approvingBooking, approvedTime);
     }
   }
 
+  // Fire-and-forget — approval already committed, email failure shouldn't block the UI.
+  function notifyPassengerOfApproval(booking: Booking, approvedTime: string) {
+    const passenger = users.find((u) => u.id === booking.user_id);
+    const trip = trips.find((t) => t.id === booking.trip_id);
+    if (!passenger?.email || !trip) return;
+
+    fetch('/api/notify/approval', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        passengerName: passenger.full_name || passenger.email.split('@')[0],
+        passengerEmail: passenger.email,
+        approvedTime,
+        tripDate: trip.trip_date,
+        pickupLocation: booking.pickup_location,
+      }),
+    }).catch((err) => console.error('[notify] approval email failed:', err));
+  }
+
+  // Fire-and-forget — rejection already committed, email failure shouldn't block the UI.
+  function notifyPassengerOfRejection(booking: Booking) {
+    const passenger = users.find((u) => u.id === booking.user_id);
+    const trip = trips.find((t) => t.id === booking.trip_id);
+    if (!passenger?.email || !trip) return;
+
+    fetch('/api/notify/rejection', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        passengerName: passenger.full_name || passenger.email.split('@')[0],
+        passengerEmail: passenger.email,
+        tripDate: trip.trip_date,
+        seatNumber: booking.seat_number,
+      }),
+    }).catch((err) => console.error('[notify] rejection email failed:', err));
+  }
+
   async function handleRejectBooking(bookingId: string) {
+    const targetBooking = bookings.find((b) => b.id === bookingId);
+
     setBookings((prev) =>
       prev.map((b) => (b.id === bookingId ? { ...b, status: 'rejected', approved_time: null } : b))
     );
@@ -274,6 +314,9 @@ export function AdminClient({
       showNotification(`Failed to decline: ${error.message}`);
     } else {
       showNotification('Booking request declined');
+      if (targetBooking) {
+        notifyPassengerOfRejection(targetBooking);
+      }
     }
   }
 
@@ -345,6 +388,13 @@ export function AdminClient({
     route_id: string | null;
     rate: number | null;
   }) {
+    const selectedDateTime = new Date(`${data.trip_date}T${data.trip_time}`);
+    const now = new Date();
+    if (selectedDateTime < now) {
+      showNotification('Cannot schedule a trip in the past. Please select a future date and time.');
+      return;
+    }
+
     const { data: newTrip, error } = await supabase
       .from('trips')
       .insert({
