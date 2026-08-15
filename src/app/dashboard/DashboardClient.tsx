@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { SeatMap } from '@/components/SeatMap';
 import { BookingModal } from '@/components/BookingModal';
+import { WhatsAppModal } from '@/components/WhatsAppModal';
 import { RouteDisplay } from '@/components/RouteDisplay';
 import { ContactCard } from '@/components/ContactCard';
 import { Sidebar } from '@/components/Sidebar';
@@ -77,6 +78,15 @@ export function DashboardClient({
   const [activeTripId, setActiveTripId] = useState<string | null>(
     initialTripId || (initialTrips.length > 0 ? initialTrips[0].id : null)
   );
+
+  const [whatsAppNumber, setWhatsAppNumber] = useState<string | null>(userWhatsApp || null);
+  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
+  const [prevWhatsAppProp, setPrevWhatsAppProp] = useState(userWhatsApp);
+
+  if (prevWhatsAppProp !== userWhatsApp) {
+    setPrevWhatsAppProp(userWhatsApp);
+    setWhatsAppNumber(userWhatsApp || null);
+  }
 
   const trip = useMemo(
     () => trips.find((t) => t.id === activeTripId) || trips[0] || null,
@@ -264,6 +274,7 @@ export function DashboardClient({
       seat_number: seatNumber,
       pickup_location: pickupLocation,
       status: 'pending',
+      payment_status: 'pending',
       approved_time: null,
       created_at: new Date().toISOString(),
     };
@@ -352,6 +363,39 @@ export function DashboardClient({
     }).catch((err) => console.error('[notify] booking email failed:', err));
   }
 
+  async function handleSaveWhatsApp(newNum: string) {
+    if (!currentUserId) return;
+
+    // Check if number is already connected to another user
+    const { data: conflict, error: queryErr } = await supabase
+      .from('users')
+      .select('id')
+      .eq('whatsapp', newNum)
+      .neq('id', currentUserId)
+      .maybeSingle();
+
+    if (queryErr) {
+      console.error('[dashboard] error checking duplicate whatsapp:', queryErr.message);
+    }
+
+    if (conflict) {
+      throw new Error('This WhatsApp number is already connected to a different user.');
+    }
+
+    const { error } = await supabase
+      .from('users')
+      .update({ whatsapp: newNum, phone: newNum })
+      .eq('id', currentUserId);
+
+    if (error) {
+      console.error('[dashboard] whatsapp update failed:', error.message);
+      throw new Error(error.message);
+    }
+
+    setWhatsAppNumber(newNum);
+    setIsWhatsAppModalOpen(false);
+  }
+
   function handleBookClick() {
     if (!trip || seatsOpen <= 0) return;
     const takenSeats = new Set(activeBookings.map((b) => b.seat_number));
@@ -368,9 +412,10 @@ export function DashboardClient({
     <main className="min-h-screen bg-asphalt flex flex-col items-center relative overflow-hidden">
       <Sidebar
         userName={userName}
-        userWhatsApp={userWhatsApp}
+        userWhatsApp={whatsAppNumber}
         currentUserId={currentUserId}
         trips={trips}
+        bookings={bookings}
         activeTripId={activeTripId}
         onSelectTrip={(tripId) => {
           setActiveTripId(tripId);
@@ -381,11 +426,41 @@ export function DashboardClient({
           }
         }}
         isAdmin={isAdmin}
+        onUpdateWhatsApp={(num) => setWhatsAppNumber(num)}
       />
 
       <div className="w-full max-w-sm flex-1 flex flex-col relative z-0">
         <HudBar rate={rate} />
         <div className="px-6 py-6 flex flex-col flex-1">
+          {/* ── WhatsApp missing alert banner ─────────────────────────── */}
+          {!isAdmin && !whatsAppNumber && (
+            <motion.div
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 flex items-start gap-3 shadow-[0_4px_16px_rgba(245,158,11,0.08)]"
+            >
+              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-500/20 text-amber-400 font-bold text-xs flex-shrink-0 mt-0.5 border border-amber-500/30">
+                !
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-semibold text-warmwhite">
+                    WhatsApp Number Required
+                  </p>
+                  <button
+                    onClick={() => setIsWhatsAppModalOpen(true)}
+                    className="text-[11px] font-mono font-bold text-amber-400 hover:text-amber-300 transition-colors uppercase tracking-wide underline underline-offset-2 flex-shrink-0"
+                  >
+                    Add number →
+                  </button>
+                </div>
+                <p className="text-[11px] text-warmwhite/60 mt-0.5 leading-relaxed">
+                  Please link your WhatsApp number so Ammar can coordinate pickup times and confirm your ride.
+                </p>
+              </div>
+            </motion.div>
+          )}
+
           {/* ── Approval notification card ─────────────────────────── */}
           <AnimatePresence>
             {myBooking && (
@@ -609,6 +684,15 @@ export function DashboardClient({
               />
             )}
           </AnimatePresence>
+
+          {/* ── WhatsApp Modal (Direct Option B) ─────────────────── */}
+          {!isAdmin && isWhatsAppModalOpen && (
+            <WhatsAppModal
+              initialNumber={whatsAppNumber}
+              onSave={handleSaveWhatsApp}
+              onCancel={() => setIsWhatsAppModalOpen(false)}
+            />
+          )}
         </div>
       </div>
     </main>

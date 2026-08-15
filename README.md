@@ -32,7 +32,7 @@ Chosen specifically to stay on free tiers at this project's scale (1 admin, 10-1
 - Next.js scaffold with the project's design tokens (colors, fonts) wired into Tailwind
 - Supabase client setup (browser + server) and auth middleware
 - Google OAuth login flow with the domain restriction enforced in the callback handler
-- Database schema (`supabase/schema.sql`) — `users`, `routes`, `trips`, `bookings`, `settings` tables with RLS policies
+- Database schema (`supabase/migrations/`) — `users`, `routes`, `trips`, `bookings`, `settings` tables with RLS policies
 - A bare dashboard shell (auth-gated, no real UI yet)
 
 Not yet built: the seat visual, booking flow, admin dashboard UI, and notifications — see `SETUP.md` for what's next.

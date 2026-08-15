@@ -29,7 +29,12 @@ export async function GET(request: Request) {
   const email = (user.email ?? "").toLowerCase();
   const allowedDomain = process.env.ALLOWED_EMAIL_DOMAIN ?? "nu.edu.pk";
   
-  const ADMIN_EMAILS = ["piroammar388@gmail.com"];
+  const envAdmin = (process.env.ADMIN_EMAIL ?? "").toLowerCase().trim();
+  const ADMIN_EMAILS = [
+    "piroammar388@gmail.com",
+    "ammarcarpool@gmail.com",
+    ...(envAdmin ? envAdmin.split(",").map((e) => e.trim()) : []),
+  ];
   const isAdmin = ADMIN_EMAILS.includes(email);
 
   if (!isAdmin && !email.endsWith(`@${allowedDomain}`)) {

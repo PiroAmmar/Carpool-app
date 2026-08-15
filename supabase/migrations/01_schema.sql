@@ -1,6 +1,8 @@
--- Carpool Hub — database schema
--- Run this in the Supabase SQL Editor (Project → SQL Editor → New Query)
--- after Phase 0 is complete.
+﻿-- ============================================================
+-- 01_schema.sql — Ammar FAST Carpool · Canonical Schema
+-- Run once in Supabase SQL Editor on a fresh project.
+-- ============================================================
+
 
 -- ============================================================
 -- USERS
@@ -21,7 +23,7 @@ alter table public.users enable row level security;
 
 create policy "Users can view all profiles"
   on public.users for select
-  using (true); -- everyone can see names (needed for admin's booking list)
+  using (true);
 
 create policy "Users can update own profile"
   on public.users for update
@@ -39,7 +41,7 @@ create policy "Users can insert own profile"
 create table if not exists public.routes (
   id uuid primary key default gen_random_uuid(),
   name text not null,
-  stops text[] not null default '{}', -- ordered list, e.g. {'Campus','DHA Phase 6','Korangi'}
+  stops text[] not null default '{}',
   is_preset boolean not null default true,
   created_at timestamptz not null default now()
 );
@@ -59,8 +61,7 @@ create policy "Only admins can manage routes"
 
 -- ============================================================
 -- TRIPS
--- One scheduled carpool run. Seat count lives here so the admin
--- can adjust capacity per trip.
+-- One scheduled carpool run.
 -- ============================================================
 create table if not exists public.trips (
   id uuid primary key default gen_random_uuid(),
@@ -103,22 +104,18 @@ create table if not exists public.bookings (
   seat_number int not null,
   pickup_location text not null,
   status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
-  approved_time time, -- set by admin on approval
+  approved_time time,
   created_at timestamptz not null default now(),
-  unique (trip_id, user_id) -- one booking per user per trip
+  unique (trip_id, user_id)
 );
 
 alter table public.bookings enable row level security;
 
-create policy "Users can view own bookings"
+-- All authenticated users see seat occupancy (needed for the seat map).
+-- Private carpool of ~15 colleagues - full visibility is intentional.
+create policy "Authenticated users can view bookings"
   on public.bookings for select
-  using (auth.uid() = user_id);
-
-create policy "Admins can view all bookings"
-  on public.bookings for select
-  using (exists (
-    select 1 from public.users where id = auth.uid() and role = 'admin'
-  ));
+  using (auth.uid() is not null);
 
 create policy "Users can create own bookings"
   on public.bookings for insert
@@ -130,11 +127,15 @@ create policy "Only admins can update booking status"
     select 1 from public.users where id = auth.uid() and role = 'admin'
   ));
 
+create policy "Users can rebook own rejected bookings"
+  on public.bookings for update
+  using (auth.uid() = user_id and status = 'rejected')
+  with check (auth.uid() = user_id and status = 'pending');
+
 
 -- ============================================================
 -- SETTINGS
--- Single-row table for the "KIC header" rate and other app-wide
--- values the admin can edit from the dashboard.
+-- Single-row table for the per-trip rate the admin can edit.
 -- ============================================================
 create table if not exists public.settings (
   id int primary key default 1,
@@ -160,41 +161,6 @@ create policy "Only admins can update settings"
 
 -- ============================================================
 -- REALTIME
--- Enable realtime on the tables the seat visual needs to
--- subscribe to.
 -- ============================================================
 alter publication supabase_realtime add table public.bookings;
 alter publication supabase_realtime add table public.trips;
--- ============================================================
--- GRANTS & PERMISSIONS
--- Run this in the Supabase SQL Editor to apply all necessary
--- table-level permissions to the public schema.
--- ============================================================
-
--- 1. Schema usage
-grant usage on schema public to anon, authenticated;
-
--- 2. Base SELECT for all tables
-grant select on public.users     to anon, authenticated;
-grant select on public.trips     to anon, authenticated;
-grant select on public.routes    to anon, authenticated;
-grant select on public.settings  to anon, authenticated;
-grant select on public.bookings  to anon, authenticated;
-
--- 3. Users table (Allow inserting/updating own profile via upsert)
-grant insert, update, delete on public.users to anon, authenticated;
-
--- 4. Bookings table (Passengers can insert/update, admins can update/delete)
-grant insert, update, delete on public.bookings to authenticated;
-
--- 5. Admin-only tables (RLS restricts these to admins, but table permissions must exist)
-grant insert, update, delete on public.trips  to authenticated;
-grant insert, update, delete on public.routes to authenticated;
-grant update on public.settings to authenticated;
-
--- 6. Sequences (Needed for any serial/identity columns)
-grant usage, select on all sequences in schema public to authenticated;
-
--- 7. Reload schema cache (Critical step so the API sees these new permissions)
-NOTIFY pgrst, 'reload schema';
-
