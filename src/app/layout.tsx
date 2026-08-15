@@ -21,6 +21,11 @@ const dataFont = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "Ammar FAST carpool",
   description: "Seat booking for the FAST campus carpool — Syed Ammar Ali",
+  icons: {
+    icon: "/favicon.svg",
+    shortcut: "/favicon.svg",
+    apple: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

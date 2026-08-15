@@ -103,7 +103,7 @@ export default async function AdminPage() {
                 Admin Control Panel
               </p>
               <h1 className="text-xl font-bold text-warmwhite">
-                Carpool Hub Operations
+                Ammar FAST Carpool Operations
               </h1>
             </div>
           </div>

@@ -76,7 +76,7 @@ function LoginForm() {
           </div>
 
           <h1 className="text-xl font-semibold text-warmwhite tracking-tight">
-            Carpool Hub
+            Ammar FAST Carpool
           </h1>
           <p className="mt-2 text-sm text-warmwhite/50">
             Sign in with your university account to continue

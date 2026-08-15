@@ -55,10 +55,14 @@ export function bookingRejectedEmail(params: {
   return {
     subject: `Seat request update — ${tripDate}`,
     html: wrap(`
-      <h2 style="color:#ef4444;margin:0 0 12px;">Ride Request Update</h2>
-      <p>Hi ${passengerName},</p>
-      <p>Your request for <b>Seat ${seatNumber}</b> on the <b>${tripDate}</b> trip could not be accommodated at this time.</p>
-      <p style="color:#c9cdd3;font-size:12px;margin-top:16px;">You can select another available seat or check upcoming trips on the dashboard.</p>
+      <h2 style="color:#ef4444;margin:0 0 12px;">Seat update, ${passengerName}</h2>
+      <p>Unfortunately, <b>Seat ${seatNumber}</b> for the <b>${tripDate}</b> trip couldn't be confirmed this time.</p>
+      <p>Trip date: <b>${tripDate}</b></p>
+      <p>Requested seat: <b>Seat ${seatNumber}</b></p>
+      <p style="color:#c9cdd3;font-size:13px;margin-top:16px;line-height:1.5;">
+        You can head back to the dashboard to select another open seat or check upcoming rides for other days.
+      </p>
+      <p style="color:#c9cdd3;font-size:12px;margin-top:16px;">Feel free to reach out on WhatsApp if you have any questions.</p>
     `),
   };
 }
