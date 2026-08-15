@@ -150,16 +150,27 @@ export function TripSchedulerModal({
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block mb-1 text-xs text-warmwhite/60 font-medium">Total Seats</label>
-            <input
-              type="number"
-              min={1}
-              max={8}
-              value={seatsTotal}
-              onChange={(e) => setSeatsTotal(parseInt(e.target.value, 10) || 4)}
-              required
-              disabled={isSubmitting}
-              className="w-full rounded-lg border border-chrome/15 bg-asphalt px-3 py-2 text-xs font-mono text-warmwhite outline-none focus:border-chrome/35"
-            />
+            <div className="flex items-center rounded-lg border border-chrome/15 bg-asphalt px-2 py-1 justify-between h-[38px]">
+              <button
+                type="button"
+                onClick={() => setSeatsTotal((prev) => Math.max(1, prev - 1))}
+                disabled={seatsTotal <= 1 || isSubmitting}
+                className="w-7 h-7 flex items-center justify-center rounded bg-white/5 hover:bg-white/10 text-warmwhite font-mono font-bold text-sm disabled:opacity-25 active:scale-95 transition-all"
+              >
+                −
+              </button>
+              <span className="font-mono text-xs font-bold text-warmwhite select-none">
+                {seatsTotal} {seatsTotal === 1 ? 'seat' : 'seats'}
+              </span>
+              <button
+                type="button"
+                onClick={() => setSeatsTotal((prev) => Math.min(4, prev + 1))}
+                disabled={seatsTotal >= 4 || isSubmitting}
+                className="w-7 h-7 flex items-center justify-center rounded bg-white/5 hover:bg-white/10 text-warmwhite font-mono font-bold text-sm disabled:opacity-25 active:scale-95 transition-all"
+              >
+                +
+              </button>
+            </div>
           </div>
           <div>
             <label className="block mb-1 text-xs text-warmwhite/60 font-medium">Trip Rate (Rs.)</label>
@@ -169,7 +180,7 @@ export function TripSchedulerModal({
               value={rateInput}
               onChange={(e) => setRateInput(e.target.value)}
               disabled={isSubmitting}
-              className="w-full rounded-lg border border-chrome/15 bg-asphalt px-3 py-2 text-xs font-mono text-warmwhite placeholder:text-warmwhite/30 outline-none focus:border-chrome/35"
+              className="w-full h-[38px] rounded-lg border border-chrome/15 bg-asphalt px-3 py-2 text-xs font-mono text-warmwhite placeholder:text-warmwhite/30 outline-none focus:border-chrome/35"
             />
           </div>
         </div>
