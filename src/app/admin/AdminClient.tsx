@@ -784,7 +784,7 @@ export function AdminClient({
                       </button>
                       <button
                         onClick={() => handleSeatsTotalChange(activeTrip.seats_total + 1)}
-                        disabled={activeTrip.seats_total >= 8}
+                        disabled={activeTrip.seats_total >= 4}
                         className="px-2 py-0.5 rounded bg-chrome/10 hover:bg-chrome/20 font-mono text-warmwhite disabled:opacity-30"
                       >
                         +
