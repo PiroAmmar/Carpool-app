@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { resend, FROM_EMAIL, ADMIN_EMAIL } from '@/lib/email/resend';
+import { sendEmail, ADMIN_EMAIL } from '@/lib/email/mailer';
 import { dailyDigestEmail } from '@/lib/email/templates';
 
 export async function GET(req: Request) {
@@ -36,15 +36,10 @@ export async function GET(req: Request) {
 
   const { subject, html } = dailyDigestEmail({ pending });
 
-  const { error: sendError } = await resend.emails.send({
-    from: FROM_EMAIL,
-    to: ADMIN_EMAIL,
-    subject,
-    html,
-  });
+  const { error: sendError } = await sendEmail({ to: ADMIN_EMAIL, subject, html });
 
   if (sendError) {
-    console.error('[cron/digest] resend error:', sendError.message);
+    console.error('[cron/digest] smtp error:', sendError.message);
     return NextResponse.json({ error: sendError.message }, { status: 502 });
   }
 

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { resend, FROM_EMAIL, ADMIN_EMAIL } from '@/lib/email/resend';
+import { sendEmail, ADMIN_EMAIL } from '@/lib/email/mailer';
 import { newBookingEmail } from '@/lib/email/templates';
 
 export async function POST(req: Request) {
@@ -20,15 +20,10 @@ export async function POST(req: Request) {
       tripTime: tripTime || 'TBD',
     });
 
-    const { error } = await resend.emails.send({
-      from: FROM_EMAIL,
-      to: ADMIN_EMAIL,
-      subject,
-      html,
-    });
+    const { error } = await sendEmail({ to: ADMIN_EMAIL, subject, html });
 
     if (error) {
-      console.error('[notify/booking] resend error:', error.message);
+      console.error('[notify/booking] smtp error:', error.message);
       return NextResponse.json({ error: error.message }, { status: 502 });
     }
 
