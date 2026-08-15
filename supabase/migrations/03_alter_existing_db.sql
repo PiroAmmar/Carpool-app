@@ -46,5 +46,16 @@ create policy "Users can rebook own rejected bookings"
   using (auth.uid() = user_id and status = 'rejected')
   with check (auth.uid() = user_id and status = 'pending');
 
+-- ⑥ Add users table to Realtime publication if not already added
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables 
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'users'
+  ) then
+    alter publication supabase_realtime add table public.users;
+  end if;
+end $$;
+
 -- Reload PostgREST schema cache
 notify pgrst, 'reload schema';

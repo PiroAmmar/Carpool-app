@@ -146,9 +146,40 @@ export function DashboardClient({
       if (tData) {
         setTrips(tData as Trip[]);
       }
+
+      // 4. Current user WhatsApp & Profile live sync
+      if (currentUserId) {
+        const { data: uData } = await supabase
+          .from('users')
+          .select('whatsapp, phone')
+          .eq('id', currentUserId)
+          .maybeSingle();
+        if (uData) {
+          const liveNum = uData.whatsapp || uData.phone || null;
+          setWhatsAppNumber(liveNum);
+        }
+      }
     };
 
     const interval = setInterval(fetchLatest, 2500);
+
+    // Users channel (for live WhatsApp number updates)
+    const usersChannel = supabase
+      .channel('dashboard-users')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'users' },
+        (payload) => {
+          if (payload.new && typeof payload.new === 'object') {
+            const u = payload.new as { id?: string; whatsapp?: string | null; phone?: string | null };
+            if (u.id === currentUserId) {
+              const liveNum = u.whatsapp || u.phone || null;
+              setWhatsAppNumber(liveNum);
+            }
+          }
+        }
+      )
+      .subscribe();
 
     // Bookings channel
     const bookingsChannel = supabase
@@ -218,11 +249,12 @@ export function DashboardClient({
 
     return () => {
       clearInterval(interval);
+      supabase.removeChannel(usersChannel);
       supabase.removeChannel(bookingsChannel);
       supabase.removeChannel(settingsChannel);
       supabase.removeChannel(tripsChannel);
     };
-  }, [supabase]);
+  }, [supabase, currentUserId]);
 
   /* ── Derived state for currently active trip ───────────────────── */
   const currentTripBookings = useMemo(

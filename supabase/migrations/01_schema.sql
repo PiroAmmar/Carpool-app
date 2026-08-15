@@ -1,4 +1,4 @@
-﻿-- ============================================================
+-- ============================================================
 -- 01_schema.sql — Ammar FAST Carpool · Canonical Schema
 -- Run once in Supabase SQL Editor on a fresh project.
 -- ============================================================
@@ -164,3 +164,4 @@ create policy "Only admins can update settings"
 -- ============================================================
 alter publication supabase_realtime add table public.bookings;
 alter publication supabase_realtime add table public.trips;
+alter publication supabase_realtime add table public.users;
