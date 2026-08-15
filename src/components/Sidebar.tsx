@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -114,6 +114,44 @@ export function Sidebar({
     setPrevWhatsApp(userWhatsApp);
     setWhatsappNum(userWhatsApp || null);
   }
+
+  useEffect(() => {
+    if (!currentUserId) return;
+
+    const fetchUser = async () => {
+      const { data } = await supabase
+        .from('users')
+        .select('whatsapp, phone')
+        .eq('id', currentUserId)
+        .maybeSingle();
+      if (data) {
+        setWhatsappNum(data.whatsapp || data.phone || null);
+      }
+    };
+
+    const interval = setInterval(fetchUser, 2500);
+
+    const userChannel = supabase
+      .channel(`sidebar-user-${currentUserId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'users' },
+        (payload) => {
+          if (payload.new && typeof payload.new === 'object') {
+            const u = payload.new as { id?: string; whatsapp?: string | null; phone?: string | null };
+            if (u.id === currentUserId) {
+              setWhatsappNum(u.whatsapp || u.phone || null);
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      clearInterval(interval);
+      supabase.removeChannel(userChannel);
+    };
+  }, [supabase, currentUserId]);
 
   async function handleSaveWhatsApp(newNum: string) {
     if (!currentUserId) return;

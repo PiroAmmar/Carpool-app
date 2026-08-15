@@ -94,6 +94,7 @@ export default async function AdminPage() {
     <main className="min-h-screen bg-asphalt flex flex-col items-center relative overflow-hidden">
       <Sidebar
         userName={userName}
+        currentUserId={user.id}
         trips={trips}
         bookings={bookings}
         activeTripId={trips.length > 0 ? trips[0].id : null}

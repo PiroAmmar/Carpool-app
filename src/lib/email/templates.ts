@@ -55,7 +55,7 @@ export function bookingRejectedEmail(params: {
   return {
     subject: `Seat Request Rejected — ${tripDate}`,
     html: wrap(`
-      <h2 style="color:#ef4444;margin:0 0 12px;">Requested rejected, ${passengerName}</h2>
+      <h2 style="color:#ef4444;margin:0 0 12px;">Request rejected, ${passengerName}</h2>
       <p>Unfortunately, <b>Seat ${seatNumber}</b> for the <b>${tripDate}</b> trip couldn't be confirmed for you.</p>
       <p>Trip date: <b>${tripDate}</b></p>
       <p>Requested seat: <b>Seat ${seatNumber}</b></p>
