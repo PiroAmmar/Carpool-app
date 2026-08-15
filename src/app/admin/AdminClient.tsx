@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { AdminApprovalModal } from '@/components/AdminApprovalModal';
 import { TripSchedulerModal } from '@/components/TripSchedulerModal';
 import { RoutePresetModal } from '@/components/RoutePresetModal';
+import { PassengerDetailsModal } from '@/components/PassengerDetailsModal';
 import { LocationBadge } from '@/components/LocationBadge';
 import type { Trip, Booking, Route } from '@/types';
 
@@ -139,6 +140,7 @@ export function AdminClient({
     trips.length > 0 ? trips[0].id : ''
   );
   const [tripStatusFilter, setTripStatusFilter] = useState<TripStatusFilterType>('all');
+  const [detailsUser, setDetailsUser] = useState<UserRecord | null>(null);
   const [tripSearchQuery, setTripSearchQuery] = useState('');
 
   // Cap per-group render count once trip volume grows — dropdown stays scannable
@@ -1129,20 +1131,28 @@ export function AdminClient({
                       </p>
                     </div>
 
-                    {u.whatsapp || u.phone ? (
-                      <a
-                        href={`https://wa.me/${(u.whatsapp || u.phone || '').replace(/[^\d+]/g, '')}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-3 py-1.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-xs font-medium hover:bg-emerald-500/25 transition-colors flex-shrink-0"
+                    <div className="flex flex-col gap-2 flex-shrink-0">
+                      <button
+                        onClick={() => setDetailsUser(u)}
+                        className="px-3 py-1.5 rounded-full bg-chrome/10 text-chrome border border-chrome/25 text-xs font-medium hover:bg-chrome/15 transition-colors"
                       >
-                        WhatsApp
-                      </a>
-                    ) : (
-                      <span className="px-3 py-1.5 rounded-full bg-chrome/5 text-warmwhite/30 text-xs font-mono flex-shrink-0">
-                        No WA
-                      </span>
-                    )}
+                        Details
+                      </button>
+                      {u.whatsapp || u.phone ? (
+                        <a
+                          href={`https://wa.me/${(u.whatsapp || u.phone || '').replace(/[^\d+]/g, '')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-3 py-1.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-xs font-medium hover:bg-emerald-500/25 transition-colors text-center"
+                        >
+                          WhatsApp
+                        </a>
+                      ) : (
+                        <span className="px-3 py-1.5 rounded-full bg-chrome/5 text-warmwhite/30 text-xs font-mono text-center">
+                          No WA
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
@@ -1219,6 +1229,18 @@ export function AdminClient({
           presetToEdit={presetModalState.preset}
           onConfirm={handleSavePreset}
           onCancel={() => setPresetModalState({ isOpen: false, preset: null })}
+        />
+      )}
+
+      {detailsUser && (
+        <PassengerDetailsModal
+          passengerName={detailsUser.full_name || detailsUser.email.split('@')[0]}
+          passengerEmail={detailsUser.email}
+          bookings={bookings.filter((b) => b.user_id === detailsUser.id)}
+          trips={trips}
+          routes={routes}
+          globalRate={globalRate}
+          onClose={() => setDetailsUser(null)}
         />
       )}
     </div>
