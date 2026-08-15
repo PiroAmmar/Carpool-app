@@ -21,7 +21,12 @@ export default async function AdminPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  const ADMIN_EMAILS = ['piroammar388@gmail.com'];
+  const envAdmin = (process.env.ADMIN_EMAIL ?? '').toLowerCase().trim();
+  const ADMIN_EMAILS = [
+    'piroammar388@gmail.com',
+    'ammarcarpool@gmail.com',
+    ...(envAdmin ? envAdmin.split(',').map((e) => e.trim()) : []),
+  ];
   const userEmail = (user.email ?? '').toLowerCase();
   const isAdminEmail = ADMIN_EMAILS.includes(userEmail);
 
@@ -90,6 +95,7 @@ export default async function AdminPage() {
       <Sidebar
         userName={userName}
         trips={trips}
+        bookings={bookings}
         activeTripId={trips.length > 0 ? trips[0].id : null}
         isAdmin={true}
       />

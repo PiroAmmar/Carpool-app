@@ -12,7 +12,12 @@ export default async function DashboardPage(props: {
   if (!user) redirect('/login');
 
   const today = new Date().toISOString().split('T')[0];
-  const ADMIN_EMAILS = ['piroammar388@gmail.com'];
+  const envAdmin = (process.env.ADMIN_EMAIL ?? '').toLowerCase().trim();
+  const ADMIN_EMAILS = [
+    'piroammar388@gmail.com',
+    'ammarcarpool@gmail.com',
+    ...(envAdmin ? envAdmin.split(',').map((e) => e.trim()) : []),
+  ];
   const userEmail = (user.email ?? '').toLowerCase();
   const isAdminEmail = ADMIN_EMAILS.includes(userEmail);
 

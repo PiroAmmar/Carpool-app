@@ -5,19 +5,104 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { motion, AnimatePresence } from 'framer-motion';
 import { WhatsAppModal } from '@/components/WhatsAppModal';
-import type { Trip } from '@/types';
+import type { Trip, Booking } from '@/types';
 
 interface SidebarProps {
   userName: string;
   userWhatsApp?: string | null;
   currentUserId?: string;
   trips: Trip[];
+  bookings?: Booking[];
   activeTripId: string | null; // UUID
   onSelectTrip?: (tripId: string) => void;
   isAdmin?: boolean;
+  onUpdateWhatsApp?: (newNum: string) => void;
 }
 
-export function Sidebar({ userName, userWhatsApp, currentUserId, trips, activeTripId, onSelectTrip, isAdmin }: SidebarProps) {
+function getTripBadge(
+  trip: Trip,
+  bookings: Booking[] = [],
+  currentUserId?: string,
+  isAdmin?: boolean
+) {
+  const tripBookings = bookings.filter((b) => b.trip_id === trip.id);
+  const activeBookings = tripBookings.filter((b) => b.status !== 'rejected');
+  const seatsTotal = trip.seats_total || 4;
+  const seatsRemaining = Math.max(0, seatsTotal - activeBookings.length);
+
+  // If admin view: show remaining seats or full
+  if (isAdmin) {
+    if (seatsRemaining === 0) {
+      return {
+        label: 'Full',
+        className: 'bg-white/5 text-warmwhite/40 border-white/10',
+      };
+    }
+    return {
+      label: `${seatsRemaining} left`,
+      className: 'bg-sky-500/10 text-sky-300 border-sky-500/20',
+    };
+  }
+
+  // Passenger view: check if user has a booking
+  const uid = currentUserId?.toLowerCase();
+  const userBookings = tripBookings.filter(
+    (b) => b.user_id?.toLowerCase() === uid
+  );
+
+  const myBooking = userBookings.length > 0
+    ? [...userBookings].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      )[0]
+    : undefined;
+
+  if (myBooking) {
+    if (myBooking.status === 'approved') {
+      return {
+        label: 'Booked',
+        className: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30 font-semibold shadow-[0_0_8px_rgba(16,185,129,0.15)]',
+      };
+    }
+    if (myBooking.status === 'pending') {
+      return {
+        label: 'Pending',
+        className: 'bg-amber-500/15 text-amber-400 border-amber-500/30 font-semibold shadow-[0_0_8px_rgba(245,158,11,0.15)]',
+      };
+    }
+    if (myBooking.status === 'rejected') {
+      const seatText = seatsRemaining > 0 ? `${seatsRemaining} left` : 'Full';
+      return {
+        label: `Rejected · ${seatText}`,
+        className: 'bg-rose-500/15 text-rose-400 border-rose-500/30 font-semibold shadow-[0_0_8px_rgba(244,63,94,0.15)]',
+      };
+    }
+  }
+
+  // No booking by this user on this trip
+  if (seatsRemaining === 0) {
+    return {
+      label: 'Full',
+      className: 'bg-white/5 text-warmwhite/40 border-white/10',
+    };
+  }
+
+  return {
+    label: `${seatsRemaining} ${seatsRemaining === 1 ? 'seat' : 'seats'} left`,
+    className: 'bg-sky-500/10 text-sky-300 border-sky-500/20',
+  };
+}
+
+export function Sidebar({
+  userName,
+  userWhatsApp,
+  currentUserId,
+  trips,
+  bookings = [],
+  activeTripId,
+  onSelectTrip,
+  isAdmin,
+  onUpdateWhatsApp,
+}: SidebarProps) {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const [isOpen, setIsOpen] = useState(false);
@@ -32,7 +117,22 @@ export function Sidebar({ userName, userWhatsApp, currentUserId, trips, activeTr
 
   async function handleSaveWhatsApp(newNum: string) {
     if (!currentUserId) return;
-    setWhatsappNum(newNum);
+
+    // Check if number is already connected to another user
+    const { data: conflict, error: queryErr } = await supabase
+      .from('users')
+      .select('id')
+      .eq('whatsapp', newNum)
+      .neq('id', currentUserId)
+      .maybeSingle();
+
+    if (queryErr) {
+      console.error('[sidebar] error checking duplicate whatsapp:', queryErr.message);
+    }
+
+    if (conflict) {
+      throw new Error('This WhatsApp number is already connected to a different user.');
+    }
 
     const { error } = await supabase
       .from('users')
@@ -41,7 +141,10 @@ export function Sidebar({ userName, userWhatsApp, currentUserId, trips, activeTr
 
     if (error) {
       console.error('[sidebar] whatsapp update failed:', error.message);
+      throw new Error(error.message);
     } else {
+      setWhatsappNum(newNum);
+      onUpdateWhatsApp?.(newNum);
       setIsWhatsAppModalOpen(false);
     }
   }
@@ -72,12 +175,18 @@ export function Sidebar({ userName, userWhatsApp, currentUserId, trips, activeTr
   }
 
   const scheduledTrips = useMemo(
-    () => trips.filter((t) => t.status === 'scheduled'),
+    () =>
+      [...trips.filter((t) => t.status === 'scheduled')].sort((a, b) => {
+        if (a.trip_date !== b.trip_date) {
+          return a.trip_date.localeCompare(b.trip_date);
+        }
+        return (a.trip_time || '').localeCompare(b.trip_time || '');
+      }),
     [trips]
   );
 
   const sidebarContent = (
-    <div className="flex flex-col h-full bg-panel w-64 md:w-72 flex-shrink-0 z-40">
+    <div className="flex flex-col h-full bg-panel w-72 md:w-80 flex-shrink-0 z-40">
       {/* Top Header - User Welcome */}
       <div className="p-6 border-b border-white/5 flex flex-col gap-3">
         <div className="flex items-center justify-between">
@@ -93,6 +202,7 @@ export function Sidebar({ userName, userWhatsApp, currentUserId, trips, activeTr
             {isAdmin && (
               <button
                 onClick={() => {
+                  setIsOpen(false);
                   if (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')) {
                     router.push('/dashboard?view=passenger');
                   } else {
@@ -141,9 +251,11 @@ export function Sidebar({ userName, userWhatsApp, currentUserId, trips, activeTr
             No scheduled trips.
           </div>
         ) : (
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1.5">
             {scheduledTrips.map((trip, i) => {
               const isActive = trip.id === activeTripId;
+              const badge = getTripBadge(trip, bookings, currentUserId, isAdmin);
+
               return (
                 <motion.button
                   key={trip.id}
@@ -156,13 +268,15 @@ export function Sidebar({ userName, userWhatsApp, currentUserId, trips, activeTr
                     } else {
                       router.push(`?tripId=${trip.id}`);
                     }
+                    setIsOpen(false);
                   }}
-                  className={`relative flex flex-col items-start pl-4 pr-3 py-2.5 rounded-lg transition-colors duration-160 text-left active:scale-[0.98] ${isActive
+                  className={`relative flex items-center justify-between gap-2.5 pl-4 pr-3 py-2.5 rounded-lg transition-colors duration-160 text-left active:scale-[0.98] w-full ${
+                    isActive
                       ? 'bg-accent-red/10 text-accent-red'
                       : 'text-warmwhite/60 hover:bg-white/5 hover:text-warmwhite'
-                    }`}
+                  }`}
                 >
-                  {/* Active-row accent rail — spatial indicator, not a color-only cue */}
+                  {/* Active-row accent rail */}
                   {isActive && (
                     <motion.span
                       layoutId="sidebar-active-rail"
@@ -170,11 +284,18 @@ export function Sidebar({ userName, userWhatsApp, currentUserId, trips, activeTr
                       className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full bg-accent-red"
                     />
                   )}
-                  <span className={`text-sm font-medium truncate w-full ${isActive ? 'text-accent-red' : 'text-warmwhite/80'}`}>
-                    {formatTripDate(trip.trip_date)}
-                  </span>
-                  <span className="text-xs font-mono opacity-75 mt-0.5">
-                    {formatTripTime(trip.trip_date, trip.trip_time)}
+
+                  <div className="flex flex-col min-w-0 flex-1">
+                    <span className={`text-sm font-medium truncate ${isActive ? 'text-accent-red' : 'text-warmwhite/80'}`}>
+                      {formatTripDate(trip.trip_date)}
+                    </span>
+                    <span className="text-xs font-mono opacity-75 mt-0.5">
+                      {formatTripTime(trip.trip_date, trip.trip_time)}
+                    </span>
+                  </div>
+
+                  <span className={`flex-shrink-0 px-2 py-0.5 rounded text-[10px] font-mono border ${badge.className}`}>
+                    {badge.label}
                   </span>
                 </motion.button>
               );

@@ -6,7 +6,7 @@ export interface Trip {
   route_id: string | null;
   direction: string | null;
   rate: number | null;
-  status: 'scheduled' | 'cancelled' | 'completed';
+  status: 'scheduled' | 'cancelled' | 'completed' | 'closed';
 }
 
 export interface Booking {
@@ -16,6 +16,7 @@ export interface Booking {
   seat_number: number;
   pickup_location: string;
   status: 'pending' | 'approved' | 'rejected';
+  payment_status: 'pending' | 'paid' | 'waived';
   approved_time: string | null;
   created_at: string;
 }

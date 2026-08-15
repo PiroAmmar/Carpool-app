@@ -30,32 +30,76 @@ interface AdminClientProps {
 
 type Tab = 'bookings' | 'trips' | 'presets' | 'passengers' | 'settings';
 
-type TripStatusFilterType = 'all' | 'scheduled' | 'completed' | 'cancelled';
+type TripStatusFilterType = 'all' | 'scheduled' | 'completed' | 'cancelled' | 'closed';
 
 function formatDirection(dir?: string | null): string {
   if (!dir) return '';
   return dir.replace(/->/g, '→');
 }
 
+function formatTime12h(timeStr?: string | null): string {
+  if (!timeStr) return 'TBD';
+  try {
+    const parts = timeStr.split(':');
+    const hour = parseInt(parts[0], 10);
+    const minute = parseInt(parts[1] || '0', 10);
+    if (isNaN(hour)) return timeStr;
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const hour12 = hour % 12 || 12;
+    const minutePad = minute.toString().padStart(2, '0');
+    return `${hour12}:${minutePad} ${ampm}`;
+  } catch {
+    return timeStr;
+  }
+}
+
 interface TripFilterToggleProps {
   scheduledCount: number;
   completedCount: number;
+  closedCount: number;
   totalCount: number;
   currentFilter: TripStatusFilterType;
   onSelectFilter: (filter: TripStatusFilterType) => void;
 }
 
+function sortTripsCustom(tripsList: Trip[]): Trip[] {
+  return [...tripsList].sort((a, b) => {
+    // 1. Status grouping: scheduled first (0), completed second (1), others last
+    const statusOrder: Record<string, number> = {
+      scheduled: 0,
+      completed: 1,
+      cancelled: 2,
+      closed: 3,
+    };
+    const orderA = statusOrder[a.status] ?? 99;
+    const orderB = statusOrder[b.status] ?? 99;
+    if (orderA !== orderB) {
+      return orderA - orderB;
+    }
+
+    // 2. Date: soonest / earliest upcoming dates first (ASC: e.g. Aug 2 above Aug 19)
+    if (a.trip_date !== b.trip_date) {
+      return a.trip_date.localeCompare(b.trip_date);
+    }
+
+    // 3. Time on same day: earlier times first (ASC: e.g. 07:00 before 14:00)
+    return (a.trip_time || '').localeCompare(b.trip_time || '');
+  });
+}
+
 function TripFilterToggle({
   scheduledCount,
   completedCount,
-  totalCount,
+  closedCount,
   currentFilter,
   onSelectFilter,
 }: TripFilterToggleProps) {
+  // 'all' shows Scheduled at top, Completed below it, and excludes closed/cancelled
   const options: { id: TripStatusFilterType; label: string }[] = [
+    { id: 'all', label: `All (${scheduledCount + completedCount})` },
     { id: 'scheduled', label: `Scheduled (${scheduledCount})` },
     { id: 'completed', label: `Completed (${completedCount})` },
-    { id: 'all', label: `All (${totalCount})` },
+    { id: 'closed', label: `Closed (${closedCount})` },
   ];
 
   return (
@@ -94,7 +138,7 @@ export function AdminClient({
   const [selectedTripId, setSelectedTripId] = useState<string>(
     trips.length > 0 ? trips[0].id : ''
   );
-  const [tripStatusFilter, setTripStatusFilter] = useState<'all' | 'scheduled' | 'completed' | 'cancelled'>('scheduled');
+  const [tripStatusFilter, setTripStatusFilter] = useState<TripStatusFilterType>('all');
   const [tripSearchQuery, setTripSearchQuery] = useState('');
 
   // Cap per-group render count once trip volume grows — dropdown stays scannable
@@ -112,17 +156,42 @@ export function AdminClient({
     [trips, tripSearchQuery]
   );
 
-  const scheduledTrips = useMemo(() => searchedTrips.filter((t) => t.status === 'scheduled'), [searchedTrips]);
-  const completedTrips = useMemo(() => searchedTrips.filter((t) => t.status === 'completed'), [searchedTrips]);
-  const cancelledTrips = useMemo(() => searchedTrips.filter((t) => t.status === 'cancelled'), [searchedTrips]);
+  const scheduledTrips = useMemo(
+    () => sortTripsCustom(searchedTrips.filter((t) => t.status === 'scheduled')),
+    [searchedTrips]
+  );
+  const completedTrips = useMemo(
+    () => sortTripsCustom(searchedTrips.filter((t) => t.status === 'completed')),
+    [searchedTrips]
+  );
+  const cancelledTrips = useMemo(
+    () => sortTripsCustom(searchedTrips.filter((t) => t.status === 'cancelled')),
+    [searchedTrips]
+  );
+  const closedTrips = useMemo(
+    () => sortTripsCustom(searchedTrips.filter((t) => t.status === 'closed')),
+    [searchedTrips]
+  );
 
   const cap = (arr: Trip[]) => (tripSearchQuery ? arr : arr.slice(0, TRIP_GROUP_CAP));
   const overflow = (arr: Trip[]) => (tripSearchQuery ? 0 : Math.max(0, arr.length - TRIP_GROUP_CAP));
 
   const filteredTripsForDropdown = useMemo(() => {
-    if (tripStatusFilter === 'all') return searchedTrips;
-    return searchedTrips.filter((t) => t.status === tripStatusFilter);
-  }, [searchedTrips, tripStatusFilter]);
+    let filtered: Trip[];
+    if (tripStatusFilter === 'all') {
+      // Exclude cancelled and closed; scheduled first, completed below them
+      filtered = [...scheduledTrips, ...completedTrips];
+    } else if (tripStatusFilter === 'scheduled') {
+      filtered = scheduledTrips;
+    } else if (tripStatusFilter === 'completed') {
+      filtered = completedTrips;
+    } else if (tripStatusFilter === 'closed') {
+      filtered = closedTrips;
+    } else {
+      filtered = searchedTrips.filter((t) => t.status === tripStatusFilter);
+    }
+    return sortTripsCustom(filtered);
+  }, [scheduledTrips, completedTrips, closedTrips, searchedTrips, tripStatusFilter]);
 
   // Keep selectedTripId valid when status filter changes
   if (filteredTripsForDropdown.length > 0 && !filteredTripsForDropdown.some((t) => t.id === selectedTripId)) {
@@ -297,6 +366,35 @@ export function AdminClient({
     }).catch((err) => console.error('[notify] rejection email failed:', err));
   }
 
+  const PAYMENT_STATUS_CYCLE: Record<Booking['payment_status'], Booking['payment_status']> = {
+    pending: 'paid',
+    paid: 'waived',
+    waived: 'pending',
+  };
+
+  async function handleCyclePaymentStatus(bookingId: string) {
+    const target = bookings.find((b) => b.id === bookingId);
+    if (!target) return;
+    const next = PAYMENT_STATUS_CYCLE[target.payment_status];
+
+    setBookings((prev) =>
+      prev.map((b) => (b.id === bookingId ? { ...b, payment_status: next } : b))
+    );
+
+    const { error } = await supabase
+      .from('bookings')
+      .update({ payment_status: next })
+      .eq('id', bookingId);
+
+    if (error) {
+      console.error('[admin] payment status update failed:', error.message);
+      showNotification(`Failed to update payment status: ${error.message}`);
+      setBookings((prev) =>
+        prev.map((b) => (b.id === bookingId ? { ...b, payment_status: target.payment_status } : b))
+      );
+    }
+  }
+
   async function handleRejectBooking(bookingId: string) {
     const targetBooking = bookings.find((b) => b.id === bookingId);
 
@@ -342,7 +440,7 @@ export function AdminClient({
   }
 
   /* ── Trip Status Actions ───────────────────────────────── */
-  async function handleUpdateTripStatus(tripId: string, status: 'scheduled' | 'cancelled' | 'completed') {
+  async function handleUpdateTripStatus(tripId: string, status: 'scheduled' | 'cancelled' | 'completed' | 'closed') {
     setTrips((prev) =>
       prev.map((t) => (t.id === tripId ? { ...t, status } : t))
     );
@@ -601,6 +699,7 @@ export function AdminClient({
                     <TripFilterToggle
                       scheduledCount={scheduledTrips.length}
                       completedCount={completedTrips.length}
+                      closedCount={closedTrips.length}
                       totalCount={trips.length}
                       currentFilter={tripStatusFilter}
                       onSelectFilter={setTripStatusFilter}
@@ -630,7 +729,7 @@ export function AdminClient({
                           <optgroup label={`— SCHEDULED TRIPS —${overflow(scheduledTrips) ? ` (showing ${TRIP_GROUP_CAP} of ${scheduledTrips.length}, search to see more)` : ''}`}>
                             {cap(scheduledTrips).map((t) => (
                               <option key={t.id} value={t.id}>
-                                {t.trip_date} · {t.trip_time} ({formatDirection(t.direction) || 'No direction'})
+                                {t.trip_date} · {formatTime12h(t.trip_time)} ({formatDirection(t.direction) || 'No direction'})
                               </option>
                             ))}
                           </optgroup>
@@ -639,7 +738,7 @@ export function AdminClient({
                           <optgroup label={`— COMPLETED TRIPS —${overflow(completedTrips) ? ` (showing ${TRIP_GROUP_CAP} of ${completedTrips.length}, search to see more)` : ''}`}>
                             {cap(completedTrips).map((t) => (
                               <option key={t.id} value={t.id}>
-                                [COMPLETED] {t.trip_date} · {t.trip_time} ({formatDirection(t.direction) || 'No direction'})
+                                [COMPLETED] {t.trip_date} · {formatTime12h(t.trip_time)} ({formatDirection(t.direction) || 'No direction'})
                               </option>
                             ))}
                           </optgroup>
@@ -648,7 +747,7 @@ export function AdminClient({
                           <optgroup label={`— CANCELLED TRIPS —${overflow(cancelledTrips) ? ` (showing ${TRIP_GROUP_CAP} of ${cancelledTrips.length}, search to see more)` : ''}`}>
                             {cap(cancelledTrips).map((t) => (
                               <option key={t.id} value={t.id}>
-                                [CANCELLED] {t.trip_date} · {t.trip_time} ({formatDirection(t.direction) || 'No direction'})
+                                [CANCELLED] {t.trip_date} · {formatTime12h(t.trip_time)} ({formatDirection(t.direction) || 'No direction'})
                               </option>
                             ))}
                           </optgroup>
@@ -750,7 +849,7 @@ export function AdminClient({
                           )}
                           {b.approved_time && (
                             <p className="text-[11px] text-emerald-400 font-mono">
-                              Approved Time: {b.approved_time}
+                              Approved Time: {formatTime12h(b.approved_time)}
                             </p>
                           )}
                         </div>
@@ -775,9 +874,24 @@ export function AdminClient({
                           )}
 
                           {b.status === 'approved' && (
-                            <span className="px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-xs font-mono font-bold uppercase">
-                              Approved
-                            </span>
+                            <>
+                              <span className="px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-xs font-mono font-bold uppercase">
+                                Approved
+                              </span>
+                              <button
+                                onClick={() => handleCyclePaymentStatus(b.id)}
+                                title="Click to cycle payment status"
+                                className={`px-3 py-1 rounded-full border text-xs font-mono font-bold uppercase transition-colors ${
+                                  b.payment_status === 'paid'
+                                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                                    : b.payment_status === 'waived'
+                                    ? 'bg-chrome/10 text-warmwhite/60 border-chrome/20'
+                                    : 'bg-signal-amber/10 text-signal-amber border-signal-amber/30'
+                                }`}
+                              >
+                                {b.payment_status}
+                              </button>
+                            </>
                           )}
 
                           {b.status === 'rejected' && (
@@ -815,6 +929,7 @@ export function AdminClient({
               <TripFilterToggle
                 scheduledCount={scheduledTrips.length}
                 completedCount={completedTrips.length}
+                      closedCount={closedTrips.length}
                 totalCount={trips.length}
                 currentFilter={tripStatusFilter}
                 onSelectFilter={setTripStatusFilter}
@@ -836,13 +951,19 @@ export function AdminClient({
                 </div>
               </div>
             ) : (
-              filteredTripsForDropdown.map((t) => (
+              filteredTripsForDropdown.map((t) => {
+                const unpaidApprovedCount = bookings.filter(
+                  (b) => b.trip_id === t.id && b.status === 'approved' && b.payment_status === 'pending'
+                ).length;
+                const canClose = t.status === 'completed' && unpaidApprovedCount === 0;
+
+                return (
                 <div key={t.id} className="bezel-shell">
                   <div className="bezel-core p-4 flex items-center justify-between gap-4">
                     <div className="flex flex-col gap-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="font-mono text-xs text-warmwhite font-bold">
-                          {t.trip_date} · {t.trip_time}
+                          {t.trip_date} · {formatTime12h(t.trip_time)}
                         </span>
                         <span className={`text-[10px] font-mono px-2 py-0.5 rounded uppercase ${
                           t.status === 'scheduled' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-chrome/10 text-warmwhite/50'
@@ -883,10 +1004,29 @@ export function AdminClient({
                           </button>
                         </>
                       )}
+                      {t.status === 'completed' && (
+                        <button
+                          onClick={() => canClose && handleUpdateTripStatus(t.id, 'closed')}
+                          disabled={!canClose}
+                          title={
+                            canClose
+                              ? 'Close trip'
+                              : `${unpaidApprovedCount} approved booking(s) still pending payment`
+                          }
+                          className={`px-2.5 py-1 rounded text-xs ${
+                            canClose
+                              ? 'bg-chrome/20 text-warmwhite hover:bg-chrome/30'
+                              : 'bg-chrome/5 text-warmwhite/30 cursor-not-allowed'
+                          }`}
+                        >
+                          Close
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
-              ))
+                );
+              })
             )}
           </div>
         </motion.div>
