@@ -53,10 +53,10 @@ export function bookingRejectedEmail(params: {
 }) {
   const { passengerName, tripDate, seatNumber } = params;
   return {
-    subject: `Seat request update — ${tripDate}`,
+    subject: `Seat Request Rejected — ${tripDate}`,
     html: wrap(`
-      <h2 style="color:#ef4444;margin:0 0 12px;">Seat update, ${passengerName}</h2>
-      <p>Unfortunately, <b>Seat ${seatNumber}</b> for the <b>${tripDate}</b> trip couldn't be confirmed this time.</p>
+      <h2 style="color:#ef4444;margin:0 0 12px;">Requested rejected, ${passengerName}</h2>
+      <p>Unfortunately, <b>Seat ${seatNumber}</b> for the <b>${tripDate}</b> trip couldn't be confirmed for you.</p>
       <p>Trip date: <b>${tripDate}</b></p>
       <p>Requested seat: <b>Seat ${seatNumber}</b></p>
       <p style="color:#c9cdd3;font-size:13px;margin-top:16px;line-height:1.5;">
@@ -82,10 +82,9 @@ export function dailyDigestEmail(params: {
     subject: `Daily digest — ${pending.length} pending request${pending.length === 1 ? '' : 's'}`,
     html: wrap(`
       <h2 style="color:#e0a526;margin:0 0 12px;">Pending requests</h2>
-      ${
-        pending.length === 0
-          ? '<p>Nothing pending — all caught up.</p>'
-          : `<table style="border-collapse:collapse;width:100%;font-size:14px;">
+      ${pending.length === 0
+        ? '<p>Nothing pending — all caught up.</p>'
+        : `<table style="border-collapse:collapse;width:100%;font-size:14px;">
               <thead><tr style="color:#c9cdd3;text-align:left;"><th style="padding:6px 12px;">Passenger</th><th style="padding:6px 12px;">Seat</th><th style="padding:6px 12px;">Pickup</th><th style="padding:6px 12px;">Trip</th></tr></thead>
               <tbody>${rows}</tbody>
             </table>`
