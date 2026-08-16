@@ -9,8 +9,8 @@ interface HudBarProps {
 export function HudBar({}: HudBarProps) {
   return (
     <header className="flex items-center justify-end px-6 py-3 border-b border-chrome/10 md:justify-between">
-      {/* On mobile, sidebar toggle is on the left, so we right-align this. On desktop, justify-between handles it. */}
-      <span className="hidden md:block text-sm font-semibold text-chrome tracking-tight">
+      {/* Sidebar toggle floats separately on the left; brand label always shows, right-aligned on mobile, spread on desktop. */}
+      <span className="block text-sm font-semibold text-chrome tracking-tight truncate">
         Ammar FAST carpool
       </span>
       <div className="flex items-center gap-3">

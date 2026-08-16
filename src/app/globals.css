@@ -35,9 +35,15 @@
   --font-mono: var(--font-data);
 }
 
+html {
+  overflow-x: hidden;
+}
+
 body {
   background: var(--color-asphalt);
   color: var(--color-warmwhite);
+  overflow-x: hidden;
+  max-width: 100vw;
 }
 
 /* ── Sleek Custom Scrollbar — Accent Red Instrument Aesthetic ── */

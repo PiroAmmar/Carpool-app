@@ -104,12 +104,12 @@ function TripFilterToggle({
   ];
 
   return (
-    <div className="flex items-center gap-1 bg-asphalt/60 p-0.5 rounded-lg border border-chrome/10">
+    <div className="flex items-center gap-1 bg-asphalt/60 p-0.5 rounded-lg border border-chrome/10 overflow-x-auto max-w-full custom-scrollbar">
       {options.map((filter) => (
         <button
           key={filter.id}
           onClick={() => onSelectFilter(filter.id)}
-          className={`px-2 py-0.5 rounded text-[10px] font-mono transition-colors ${
+          className={`px-2 py-0.5 rounded text-[10px] font-mono transition-colors flex-shrink-0 whitespace-nowrap ${
             currentFilter === filter.id
               ? 'bg-accent-red/20 text-accent-red font-bold'
               : 'text-warmwhite/40 hover:text-warmwhite/70'
@@ -694,8 +694,8 @@ export function AdminClient({
             <div className="bezel-core p-5 flex flex-col gap-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex flex-col gap-2 min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-mono text-[10px] tracking-widest text-warmwhite/40 uppercase">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 min-w-0">
+                    <span className="font-mono text-[10px] tracking-widest text-warmwhite/40 uppercase flex-shrink-0">
                       Active Trip Selection
                     </span>
                     <TripFilterToggle
@@ -920,29 +920,27 @@ export function AdminClient({
           transition={{ duration: 0.25 }}
           className="flex flex-col gap-4"
         >
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-col gap-3 mb-2">
+            <div className="flex items-center justify-between gap-2">
               <h3 className="font-mono text-xs font-semibold tracking-widest text-warmwhite/80 uppercase">
                 Trip Directory ({filteredTripsForDropdown.length})
               </h3>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <TripFilterToggle
-                scheduledCount={scheduledTrips.length}
-                completedCount={completedTrips.length}
-                      closedCount={closedTrips.length}
-                totalCount={trips.length}
-                currentFilter={tripStatusFilter}
-                onSelectFilter={setTripStatusFilter}
-              />
               <button
                 onClick={() => setIsSchedulerOpen(true)}
-                className="px-3 py-1.5 rounded-full bg-accent-red text-white text-xs font-bold uppercase tracking-wide hover:bg-accent-red/90 transition-colors"
+                className="flex-shrink-0 whitespace-nowrap px-3 py-1.5 rounded-full bg-accent-red text-white text-xs font-bold uppercase tracking-wide hover:bg-accent-red/90 transition-colors"
               >
                 + Schedule Trip
               </button>
             </div>
+
+            <TripFilterToggle
+              scheduledCount={scheduledTrips.length}
+              completedCount={completedTrips.length}
+              closedCount={closedTrips.length}
+              totalCount={trips.length}
+              currentFilter={tripStatusFilter}
+              onSelectFilter={setTripStatusFilter}
+            />
           </div>
 
           <div className="flex flex-col gap-3">
