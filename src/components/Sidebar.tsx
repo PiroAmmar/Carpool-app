@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { motion, AnimatePresence } from 'framer-motion';
 import { WhatsAppModal } from '@/components/WhatsAppModal';
+import { PushToggle } from '@/app/PushToggle';
 import type { Trip, Booking } from '@/types';
 
 interface SidebarProps {
@@ -342,8 +343,9 @@ export function Sidebar({
         )}
       </div>
 
-      {/* Bottom Footer - Logout */}
-      <div className="p-4 border-t border-white/5">
+      {/* Bottom Footer - Notifications + Logout */}
+      <div className="p-4 border-t border-white/5 space-y-3">
+        <PushToggle />
         <button
           onClick={handleLogout}
           className="w-full flex items-center justify-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium text-accent-red transition-[background-color,transform] duration-160 hover:bg-accent-red/10 active:scale-[0.97]"
