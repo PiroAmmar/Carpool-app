@@ -11,9 +11,19 @@ interface BeforeInstallPromptEvent extends Event {
 const DISMISS_KEY = "carpool-hub-install-dismissed-at";
 const DISMISS_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000; // re-ask after a week
 
+function isIOSSafari() {
+  const ua = window.navigator.userAgent;
+  const isIOS = /iPad|iPhone|iPod/.test(ua) && !("MSStream" in window);
+  // iOS Chrome/Firefox/etc. also use WebKit and report "Safari" in UA —
+  // narrow to actual Safari by excluding other iOS browser tokens.
+  const isOtherIOSBrowser = /CriOS|FxiOS|EdgiOS|OPiOS/.test(ua);
+  return isIOS && !isOtherIOSBrowser;
+}
+
 export function InstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [visible, setVisible] = useState(false);
+  const [showIOSInstructions, setShowIOSInstructions] = useState(false);
 
   useEffect(() => {
     const isStandalone =
@@ -23,6 +33,14 @@ export function InstallPrompt() {
 
     const dismissedAt = Number(localStorage.getItem(DISMISS_KEY) ?? 0);
     if (Date.now() - dismissedAt < DISMISS_COOLDOWN_MS) return;
+
+    // Safari (iOS and macOS) never fires beforeinstallprompt — there's no
+    // programmatic install API on WebKit. Show manual instructions instead.
+    if (isIOSSafari()) {
+      setShowIOSInstructions(true);
+      setVisible(true);
+      return;
+    }
 
     const handler = (e: Event) => {
       e.preventDefault();
@@ -57,22 +75,42 @@ export function InstallPrompt() {
           transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
           className="fixed bottom-4 left-4 right-4 z-50 mx-auto flex max-w-sm items-center gap-3 rounded-lg border border-chrome/20 bg-panel px-4 py-3 shadow-lg sm:left-auto sm:right-4"
         >
-          <div className="flex-1">
-            <p className="text-sm font-medium text-warmwhite">Install Carpool Hub</p>
-            <p className="text-xs text-chrome/70">Add to your home screen for quick access</p>
-          </div>
-          <button
-            onClick={handleDismiss}
-            className="text-xs text-chrome/60 hover:text-chrome"
-          >
-            Not now
-          </button>
-          <button
-            onClick={handleInstall}
-            className="rounded-md bg-signal-amber px-3 py-1.5 text-xs font-semibold text-asphalt"
-          >
-            Install
-          </button>
+          {showIOSInstructions ? (
+            <>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-warmwhite">Install Carpool Hub</p>
+                <p className="text-xs text-chrome/70">
+                  Tap <span className="font-semibold text-chrome">Share</span> in Safari, then{" "}
+                  <span className="font-semibold text-chrome">Add to Home Screen</span>
+                </p>
+              </div>
+              <button
+                onClick={handleDismiss}
+                className="text-xs text-chrome/60 hover:text-chrome"
+              >
+                Got it
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-warmwhite">Install Carpool Hub</p>
+                <p className="text-xs text-chrome/70">Add to your home screen for quick access</p>
+              </div>
+              <button
+                onClick={handleDismiss}
+                className="text-xs text-chrome/60 hover:text-chrome"
+              >
+                Not now
+              </button>
+              <button
+                onClick={handleInstall}
+                className="rounded-md bg-signal-amber px-3 py-1.5 text-xs font-semibold text-asphalt"
+              >
+                Install
+              </button>
+            </>
+          )}
         </motion.div>
       )}
     </AnimatePresence>
