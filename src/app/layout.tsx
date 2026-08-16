@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { RegisterSW } from "./RegisterSW";
+import { InstallPrompt } from "./InstallPrompt";
 
 // Display/UI face — technical grotesk with a bit of edge, per the design
 // system. Swap for General Sans/Neue Montreal (via Fontshare) later if
@@ -53,6 +54,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         {/* Fixed grain — physical texture, never on scrolling containers. */}
         <div className="grain-overlay" aria-hidden />
         <RegisterSW />
+        <InstallPrompt />
         {children}
       </body>
     </html>
