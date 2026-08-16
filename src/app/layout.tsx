@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import { RegisterSW } from "./RegisterSW";
 
 // Display/UI face — technical grotesk with a bit of edge, per the design
 // system. Swap for General Sans/Neue Montreal (via Fontshare) later if
@@ -21,11 +22,25 @@ const dataFont = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "Ammar FAST carpool",
   description: "Seat booking for the FAST campus carpool — Syed Ammar Ali",
+  manifest: "/manifest.json",
   icons: {
-    icon: "/favicon.svg",
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
     shortcut: "/favicon.svg",
-    apple: "/favicon.svg",
+    apple: "/apple-touch-icon.png",
   },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Carpool Hub",
+  },
+};
+
+export const viewport = {
+  themeColor: "#0b0d10",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -37,6 +52,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full flex flex-col font-sans">
         {/* Fixed grain — physical texture, never on scrolling containers. */}
         <div className="grain-overlay" aria-hidden />
+        <RegisterSW />
         {children}
       </body>
     </html>
