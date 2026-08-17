@@ -18,12 +18,7 @@ interface TripSchedulerModalProps {
   onCancel: () => void;
 }
 
-const DIRECTIONS = [
-  'Home -> FAST main campus',
-  'FAST main campus -> Home',
-  'Home -> FAST city campus',
-  'FAST city campus -> Home',
-];
+const DIRECTIONS = ['Home -> Campus', 'Campus -> Home'];
 
 export function TripSchedulerModal({
   presets,
