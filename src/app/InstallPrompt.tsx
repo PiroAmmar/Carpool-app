@@ -86,7 +86,7 @@ export function InstallPrompt() {
               </div>
               <button
                 onClick={handleDismiss}
-                className="text-xs text-chrome/60 hover:text-chrome"
+                className="px-2.5 py-1.5 text-xs text-chrome/60 hover:text-warmwhite hover:bg-chrome/10 rounded-md transition-colors active:scale-95"
               >
                 Got it
               </button>
@@ -99,13 +99,13 @@ export function InstallPrompt() {
               </div>
               <button
                 onClick={handleDismiss}
-                className="text-xs text-chrome/60 hover:text-chrome"
+                className="px-2.5 py-1.5 text-xs text-chrome/60 hover:text-warmwhite hover:bg-chrome/10 rounded-md transition-colors active:scale-95"
               >
                 Not now
               </button>
               <button
                 onClick={handleInstall}
-                className="rounded-md bg-signal-amber px-3 py-1.5 text-xs font-semibold text-asphalt"
+                className="rounded-md bg-signal-amber px-3.5 py-1.5 text-xs font-semibold text-asphalt transition-transform active:scale-95 hover:brightness-105"
               >
                 Install
               </button>

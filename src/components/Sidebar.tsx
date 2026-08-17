@@ -41,7 +41,7 @@ function getTripBadge(
     }
     return {
       label: `${seatsRemaining} left`,
-      className: 'bg-sky-500/10 text-sky-300 border-sky-500/20',
+      className: 'bg-chrome/10 text-chrome border-chrome/20',
     };
   }
 
@@ -67,14 +67,14 @@ function getTripBadge(
     if (myBooking.status === 'pending') {
       return {
         label: 'Pending',
-        className: 'bg-amber-500/15 text-amber-400 border-amber-500/30 font-semibold shadow-[0_0_8px_rgba(245,158,11,0.15)]',
+        className: 'bg-signal-amber/15 text-signal-amber border-signal-amber/30 font-semibold shadow-[0_0_8px_rgba(224,165,38,0.15)]',
       };
     }
     if (myBooking.status === 'rejected') {
       const seatText = seatsRemaining > 0 ? `${seatsRemaining} left` : 'Full';
       return {
         label: `Rejected · ${seatText}`,
-        className: 'bg-rose-500/15 text-rose-400 border-rose-500/30 font-semibold shadow-[0_0_8px_rgba(244,63,94,0.15)]',
+        className: 'bg-accent-red/15 text-accent-red border-accent-red/30 font-semibold shadow-[0_0_8px_rgba(239,68,68,0.15)]',
       };
     }
   }
@@ -89,7 +89,7 @@ function getTripBadge(
 
   return {
     label: `${seatsRemaining} ${seatsRemaining === 1 ? 'seat' : 'seats'} left`,
-    className: 'bg-sky-500/10 text-sky-300 border-sky-500/20',
+    className: 'bg-chrome/10 text-chrome border-chrome/20',
   };
 }
 

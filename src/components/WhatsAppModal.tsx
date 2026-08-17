@@ -118,7 +118,7 @@ export function WhatsAppModal({
         {/* Real-time status */}
         <div className="mt-2 flex items-center justify-between text-[11px] font-mono">
           {error ? (
-            <span className="text-rose-400 font-medium">{error}</span>
+            <span className="text-accent-red font-medium">{error}</span>
           ) : (
             <span className="text-warmwhite/40">
               {isValid ? '✓ Ready to save' : 'Enter 10 digits (no zero)'}

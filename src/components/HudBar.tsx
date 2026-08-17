@@ -8,17 +8,22 @@ interface HudBarProps {
 
 export function HudBar({}: HudBarProps) {
   return (
-    <header className="flex items-center justify-center gap-2 pl-16 pr-4 py-3 border-b border-chrome/10 md:justify-between md:pl-6 md:pr-6">
-      {/* Sidebar toggle is fixed top-left and floats above this bar; pl-16 keeps the brand label clear of it on mobile, centered in the remaining space. Desktop spreads brand/status apart. */}
-      <span className="text-sm font-semibold text-chrome tracking-tight truncate">
+    <header className="relative flex items-center justify-between px-4 py-3.5 border-b border-chrome/10 w-full">
+      {/* Left counterweight slot matching the fixed sidebar hamburger button */}
+      <div className="w-9 h-9 flex-shrink-0" aria-hidden="true" />
+
+      {/* Symmetrically centered brand title */}
+      <span className="text-sm font-semibold text-chrome tracking-tight truncate text-center mx-auto px-2">
         Ammar FAST carpool
       </span>
-      <div className="flex items-center gap-3">
+
+      {/* Right telemetry status indicator balanced with left slot */}
+      <div className="w-9 flex items-center justify-end flex-shrink-0">
         <motion.span
-          className="h-2 w-2 rounded-full bg-emerald-400 flex-shrink-0"
+          className="h-2 w-2 rounded-full bg-emerald-400 flex-shrink-0 shadow-[0_0_8px_rgba(16,185,129,0.4)]"
           animate={{ opacity: [0.4, 1, 0.4], scale: [0.85, 1, 0.85] }}
           transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
-          aria-hidden
+          aria-hidden="true"
           title="Online"
         />
       </div>

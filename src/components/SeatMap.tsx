@@ -34,6 +34,13 @@ const TEXT_COLOR: Record<SeatStatus, string> = {
   approved: 'rgba(11,13,16,0.95)',
 };
 
+const STATUS_LABELS: Record<SeatStatus, string> = {
+  available: 'Available',
+  pending: 'Pending approval',
+  'mine-pending': 'Your booking pending approval',
+  approved: 'Booked / Confirmed',
+};
+
 /* ─── Individual seat ───────────────────────────────────────────── */
 interface SeatProps {
   num: number;
@@ -47,9 +54,16 @@ interface SeatProps {
 function Seat({ num, x, y, w, h, status }: SeatProps) {
   const cx = x + w / 2;
   const cy = y + h / 2;
+  const label = `Seat ${num}: ${STATUS_LABELS[status]}`;
 
   return (
-    <motion.g>
+    <motion.g
+      role="listitem"
+      aria-label={label}
+      tabIndex={0}
+      className="focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-red"
+    >
+      <title>{label}</title>
       <motion.rect
         x={x} y={y} width={w} height={h} rx={28}
         fill={FILL[status]}
@@ -75,6 +89,7 @@ function Seat({ num, x, y, w, h, status }: SeatProps) {
         fontWeight="600"
         fill={TEXT_COLOR[status]}
         style={{ userSelect: 'none', pointerEvents: 'none' }}
+        aria-hidden="true"
       >
         {num}
       </text>
@@ -114,11 +129,17 @@ export function SeatMap({
   }
 
   return (
-    <div className="relative w-[140px] select-none" role="img" aria-label="Car seat map">
+    <div className="relative w-[140px] select-none" role="region" aria-label="Vehicle seating arrangement">
       {/* Tight-cropped viewBox around the traced artwork's actual bounds
           (x:471-1528, y:94-1905 in the 2000×2000 reference space) — avoids
           rendering the surrounding whitespace from the source canvas. */}
-      <svg viewBox="400 50 1200 1900" xmlns="http://www.w3.org/2000/svg" className="w-full h-auto drop-shadow-2xl">
+      <svg
+        viewBox="400 50 1200 1900"
+        xmlns="http://www.w3.org/2000/svg"
+        className="w-full h-auto drop-shadow-2xl"
+        role="list"
+        aria-label="Seat map layout"
+      >
         {/* ── Traced car body (potrace, from approved reference art) ── */}
         <g transform={CAR_OUTLINE_TRANSFORM} fill="var(--color-chrome)" fillOpacity="0.9" stroke="none">
           <path d={CAR_OUTLINE_PATH} />

@@ -34,7 +34,7 @@ export function BookingModal({ seatNumber, onConfirm, onCancel }: BookingModalPr
       onCancel={onCancel}
       isSubmitting={isSubmitting}
       badgeText="Booking"
-      badgeColor="text-warmwhite/35"
+      badgeColor="text-warmwhite/35 font-bold"
       title={`Seat ${seatNumber}`}
       ariaLabel={`Book seat ${seatNumber}`}
     >
@@ -72,7 +72,7 @@ export function BookingModal({ seatNumber, onConfirm, onCancel }: BookingModalPr
             disabled={!pickup.trim() || isSubmitting}
             whileTap={{ scale: 0.97 }}
             transition={{ duration: 0.16, ease: [0.23, 1, 0.32, 1] }}
-            className="group flex-1 flex items-center justify-between rounded-full bg-accent-red/90 pl-4 pr-1.5 py-1.5 text-sm font-bold text-white hover:bg-accent-red transition-colors disabled:opacity-35 disabled:cursor-not-allowed"
+            className="group flex-1 flex items-center justify-between rounded-full bg-accent-red/90 pl-4 pr-1.5 py-1.5 text-sm font-bold text-white hover:bg-accent-red transition-colors disabled:opacity-35 disabled:cursor-not-allowed uppercase tracking-wide"
           >
             {isSubmitting ? 'Booking...' : 'Confirm'}
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-black/15 transition-transform duration-160 ease-out group-hover:translate-x-0.5">

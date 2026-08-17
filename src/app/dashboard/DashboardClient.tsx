@@ -469,9 +469,9 @@ export function DashboardClient({
             <motion.div
               initial={{ opacity: 0, y: -6 }}
               animate={{ opacity: 1, y: 0 }}
-              className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 flex items-start gap-3 shadow-[0_4px_16px_rgba(245,158,11,0.08)]"
+              className="mb-4 rounded-xl border border-signal-amber/30 bg-signal-amber/10 p-3.5 flex items-start gap-3 shadow-[0_4px_16px_rgba(224,165,38,0.08)]"
             >
-              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-500/20 text-amber-400 font-bold text-xs flex-shrink-0 mt-0.5 border border-amber-500/30">
+              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-signal-amber/20 text-signal-amber font-bold text-xs flex-shrink-0 mt-0.5 border border-signal-amber/30">
                 !
               </div>
               <div className="flex-1 min-w-0">
@@ -481,7 +481,7 @@ export function DashboardClient({
                   </p>
                   <button
                     onClick={() => setIsWhatsAppModalOpen(true)}
-                    className="text-[11px] font-mono font-bold text-amber-400 hover:text-amber-300 transition-colors uppercase tracking-wide underline underline-offset-2 flex-shrink-0"
+                    className="text-[11px] font-mono font-bold text-signal-amber hover:text-signal-amber/80 transition-colors uppercase tracking-wide underline underline-offset-2 flex-shrink-0"
                   >
                     Add number →
                   </button>
@@ -541,7 +541,7 @@ export function DashboardClient({
                         Request Declined
                       </p>
                       <p className="mt-0.5 text-xs text-warmwhite/70">
-                        Sorry for the inconvenience.
+                        This seat request was declined. You can select another available seat or trip below.
                       </p>
                     </div>
                     <div className="flex h-7 w-7 items-center justify-center rounded-full bg-accent-red/20 text-accent-red text-xs font-bold flex-shrink-0 ml-3">
@@ -578,39 +578,7 @@ export function DashboardClient({
             )}
           </AnimatePresence>
 
-          {/* ── Rate Display & Current Trip Date ────────────────────── */}
-          {rate !== null && (
-            <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
-              style={{ willChange: 'transform, opacity' }}
-              className="mb-4 mt-4 flex flex-col items-center text-center py-2"
-            >
-              <p className="text-xs text-warmwhite/50 tracking-widest uppercase font-semibold">Trip Rate</p>
-              <p className="text-4xl font-mono font-bold text-white mt-1 tracking-tight">
-                <span className="text-xl text-warmwhite/60 font-sans tracking-normal align-top mr-1">Rs.</span>
-                {rate}
-              </p>
-
-              {/* Current Trip Date displayed below Trip rate */}
-              {trip && (
-                <div className="mt-2.5 inline-flex items-center gap-1.5 rounded-full border border-chrome/15 bg-panel px-3.5 py-1 shadow-sm">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-accent-red">
-                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                    <line x1="16" y1="2" x2="16" y2="6"></line>
-                    <line x1="8" y1="2" x2="8" y2="6"></line>
-                    <line x1="3" y1="10" x2="21" y2="10"></line>
-                  </svg>
-                  <span className="font-mono text-xs font-medium text-warmwhite/80">
-                    {formatTripDateOnly(trip.trip_date)}
-                  </span>
-                </div>
-              )}
-            </motion.div>
-          )}
-
-          {/* ── Seat map + info ──────────────── */}
+          {/* ── Instrument Cluster: Seat map + trip parameters ──────────────── */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -618,7 +586,48 @@ export function DashboardClient({
             style={{ willChange: 'transform, opacity' }}
             className="mt-2 bezel-shell"
           >
-            <div className="bezel-core py-6 px-4">
+            <div className="bezel-core p-4 sm:p-5">
+              {/* Bezel Top Telemetry Row: Trip Date & Fare */}
+              {trip && (
+                <div className="flex items-center justify-between gap-2 pb-3 mb-4 border-b border-white/5">
+                  <div className="inline-flex items-center gap-1.5 min-w-0">
+                    <svg
+                      width="15"
+                      height="15"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="text-accent-red flex-shrink-0"
+                      aria-hidden="true"
+                    >
+                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                      <line x1="16" y1="2" x2="16" y2="6"></line>
+                      <line x1="8" y1="2" x2="8" y2="6"></line>
+                      <line x1="3" y1="10" x2="21" y2="10"></line>
+                    </svg>
+                    <span className="font-mono text-xs font-semibold text-warmwhite truncate">
+                      {formatTripDateOnly(trip.trip_date)}
+                    </span>
+                  </div>
+
+                  {rate !== null && (
+                    <div className="inline-flex items-center gap-1.5 rounded-full bg-chrome/5 border border-chrome/10 px-2.5 py-0.5 flex-shrink-0">
+                      <span className="font-mono text-[10px] uppercase tracking-wider text-warmwhite/40 font-medium">
+                        Fare
+                      </span>
+                      <span className="font-mono text-xs font-bold text-warmwhite">
+                        <span className="text-[10px] text-warmwhite/50 font-sans mr-0.5">Rs.</span>
+                        {rate}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Main Cockpit Layout: Left telemetry + Right SeatMap */}
               <div className="flex items-center gap-4">
                 {/* Left column: seat count + depart time */}
                 <div className="flex flex-col gap-3 flex-1 min-w-0">
@@ -628,7 +637,7 @@ export function DashboardClient({
                   {trip && (
                     <div className="text-center">
                       <p className="font-mono text-[9px] tracking-widest text-warmwhite/50 uppercase mb-1">
-                        Reaching/Departing Campus Time
+                        Departure Schedule
                       </p>
                       <p className="text-sm font-medium text-warmwhite/90 leading-snug">
                         {formatTripDateTime(trip.trip_date, trip.trip_time)}
@@ -655,8 +664,8 @@ export function DashboardClient({
           {/* ── No trip fallback ─────────────────────────────────── */}
           {!trip && (
             <div className="mt-8 rounded-xl border border-chrome/10 bg-panel p-6 text-center">
-              <p className="text-sm text-warmwhite/50">No upcoming trip scheduled.</p>
-              <p className="mt-1 text-xs text-warmwhite/30">Check back soon.</p>
+              <p className="text-sm text-warmwhite/70 font-medium">No upcoming trips currently scheduled.</p>
+              <p className="mt-1 text-xs text-warmwhite/40">Check back soon or open the sidebar to view other scheduled rides.</p>
             </div>
           )}
 
