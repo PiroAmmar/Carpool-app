@@ -8,7 +8,7 @@ import { LocationBadge } from './LocationBadge';
 interface AdminApprovalModalProps {
   passengerName: string;
   seatNumber: number;
-  pickupLocation: string;
+  pickupLocation: string | null;
   defaultTime?: string;
   onConfirm: (approvedTime: string) => void;
   onCancel: () => void;
