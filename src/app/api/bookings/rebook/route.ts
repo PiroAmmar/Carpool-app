@@ -12,7 +12,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { seatNumber, pickupLocation, bookingId } = body;
+    const { seatNumber, pickupLocation, dropoffLocation, freeByTime, bookingId } = body;
     let tripId = body.tripId;
 
     if (!tripId && bookingId) {
@@ -26,7 +26,8 @@ export async function POST(request: Request) {
       }
     }
 
-    if (!tripId || !seatNumber || !pickupLocation) {
+    const hasLocation = Boolean(pickupLocation) || Boolean(dropoffLocation && freeByTime);
+    if (!tripId || !seatNumber || !hasLocation) {
       return NextResponse.json({ error: "Missing required booking details" }, { status: 400 });
     }
 
@@ -39,9 +40,12 @@ export async function POST(request: Request) {
         .from("bookings")
         .update({
           seat_number: seatNumber,
-          pickup_location: pickupLocation,
+          pickup_location: pickupLocation ?? null,
+          dropoff_location: dropoffLocation ?? null,
+          free_by_time: freeByTime ?? null,
           status: "pending",
           approved_time: null,
+          admin_message: null,
         })
         .eq("id", bookingId)
         .eq("user_id", userId)
@@ -62,7 +66,9 @@ export async function POST(request: Request) {
         trip_id: tripId,
         user_id: userId,
         seat_number: seatNumber,
-        pickup_location: pickupLocation,
+        pickup_location: pickupLocation ?? null,
+        dropoff_location: dropoffLocation ?? null,
+        free_by_time: freeByTime ?? null,
         status: "pending",
         approved_time: null,
       })

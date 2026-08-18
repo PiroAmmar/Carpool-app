@@ -23,12 +23,13 @@ export function LocationIcon({ className = 'w-3.5 h-3.5 text-accent-red flex-shr
 }
 
 interface LocationBadgeProps {
-  location: string;
+  location: string | null;
   className?: string;
   size?: 'sm' | 'md';
 }
 
 export function LocationBadge({ location, className = '', size = 'md' }: LocationBadgeProps) {
+  if (!location) return null;
   const isSm = size === 'sm';
   return (
     <div

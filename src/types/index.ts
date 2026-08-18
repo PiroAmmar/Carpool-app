@@ -14,7 +14,10 @@ export interface Booking {
   trip_id: string;
   user_id: string;
   seat_number: number;
-  pickup_location: string;
+  pickup_location: string | null;
+  dropoff_location: string | null;
+  free_by_time: string | null;
+  admin_message: string | null;
   status: 'pending' | 'approved' | 'rejected';
   payment_status: 'pending' | 'paid' | 'waived';
   approved_time: string | null;
@@ -29,3 +32,14 @@ export interface Route {
 }
 
 export type SeatStatus = 'available' | 'pending' | 'approved' | 'mine-pending';
+
+export interface BookingSubmission {
+  pickup_location?: string;
+  dropoff_location?: string;
+  free_by_time?: string;
+}
+
+export interface ApprovalSubmission {
+  approved_time?: string;
+  admin_message?: string;
+}

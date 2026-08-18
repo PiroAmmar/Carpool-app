@@ -2,6 +2,7 @@
 
 import { BaseModal } from './BaseModal';
 import { LocationBadge } from './LocationBadge';
+import { categoryOf } from '@/lib/tripCategory';
 import type { Trip, Booking, Route } from '@/types';
 
 interface PassengerDetailsModalProps {
@@ -128,7 +129,10 @@ export function PassengerDetailsModal({
                     {route?.name || formatDirection(trip?.direction) || 'No route set'}
                   </p>
                   <div className="flex items-center justify-between mt-1.5 gap-2">
-                    <LocationBadge location={b.pickup_location} size="sm" />
+                    <LocationBadge
+                      location={categoryOf(trip?.direction) === 'campus_to_home' ? b.dropoff_location : b.pickup_location}
+                      size="sm"
+                    />
                     <span className="text-[11px] font-mono text-warmwhite/40 flex-shrink-0">
                       Seat {b.seat_number} · Rs. {rateFor(b.trip_id)}
                     </span>

@@ -114,9 +114,13 @@ export function PushToggle() {
   return (
     <button
       onClick={status === "subscribed" ? unsubscribe : subscribe}
-      className="rounded-md border border-chrome/20 bg-panel px-3 py-1.5 text-xs font-medium text-warmwhite hover:border-chrome/40"
+      className={
+        status === "subscribed"
+          ? "rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-500 hover:bg-emerald-500/15"
+          : "rounded-md border border-signal-amber/40 bg-signal-amber/10 px-3 py-1.5 text-xs font-medium text-signal-amber hover:bg-signal-amber/15"
+      }
     >
-      {status === "subscribed" ? "Notifications on — tap to disable" : "Enable trip notifications"}
+      {status === "subscribed" ? "Disable trip notifications" : "Enable trip notifications"}
     </button>
   );
 }

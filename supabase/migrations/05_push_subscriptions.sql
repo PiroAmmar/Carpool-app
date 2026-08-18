@@ -16,6 +16,13 @@ create table if not exists public.push_subscriptions (
 
 alter table public.push_subscriptions enable row level security;
 
+-- Grant base table privileges to the authenticated role.
+-- RLS policies only filter rows; without this GRANT the role
+-- cannot touch the table at all ("permission denied for table").
+grant select, insert, update, delete
+  on public.push_subscriptions
+  to authenticated;
+
 create policy "Users can view own push subscriptions"
   on public.push_subscriptions for select
   using (auth.uid() = user_id);
@@ -27,6 +34,13 @@ create policy "Users can insert own push subscriptions"
 create policy "Users can delete own push subscriptions"
   on public.push_subscriptions for delete
   using (auth.uid() = user_id);
+
+-- UPDATE policy is required for upsert (onConflict) to work via the anon/user role.
+-- Without this, Supabase RLS blocks the conflict-resolution UPDATE and returns 500.
+create policy "Users can update own push subscriptions"
+  on public.push_subscriptions for update
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
 
 -- Admin needs to read all subscriptions server-side to fan out pushes
 -- on trip create/approve/reject — service role key bypasses RLS for

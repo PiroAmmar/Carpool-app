@@ -5,16 +5,22 @@ import { newBookingEmail } from '@/lib/email/templates';
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { passengerName, passengerEmail, pickupLocation, seatNumber, tripDate, tripTime } = body;
+    const { passengerName, passengerEmail, pickupLocation, dropoffLocation, freeByTime, seatNumber, tripDate, tripTime } = body;
 
-    if (!passengerName || !passengerEmail || !pickupLocation || !seatNumber || !tripDate) {
+    const locationLine = pickupLocation
+      ? pickupLocation
+      : dropoffLocation
+        ? `Dropoff: ${dropoffLocation} (free by ${freeByTime || 'TBD'})`
+        : null;
+
+    if (!passengerName || !passengerEmail || !locationLine || !seatNumber || !tripDate) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
     const { subject, html } = newBookingEmail({
       passengerName,
       passengerEmail,
-      pickupLocation,
+      pickupLocation: locationLine,
       seatNumber,
       tripDate,
       tripTime: tripTime || 'TBD',

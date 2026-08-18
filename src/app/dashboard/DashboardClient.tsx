@@ -11,7 +11,9 @@ import { ContactCard } from '@/components/ContactCard';
 import { Sidebar } from '@/components/Sidebar';
 import { HudBar } from '@/components/HudBar';
 import { LocationBadge } from '@/components/LocationBadge';
+import { categoryOf } from '@/lib/tripCategory';
 import type { Trip, Booking, Route } from '@/types';
+import type { BookingSubmission } from '@/types';
 
 interface DashboardClientProps {
   initialTrips: Trip[];
@@ -293,9 +295,10 @@ export function DashboardClient({
 
   const tripRate = (trip as (Trip & { rate?: number }) | null)?.rate ?? null;
   const rate = tripRate ?? globalRate ?? null;
+  const tripCategory = useMemo(() => categoryOf(trip?.direction), [trip]);
 
   /* ── Booking flow ─────────────────────────────────────────────── */
-  async function handleBook(seatNumber: number, pickupLocation: string) {
+  async function handleBook(seatNumber: number, submission: BookingSubmission) {
     if (!trip) return;
 
     const optimisticId = `opt-${typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : seatNumber}`;
@@ -304,7 +307,10 @@ export function DashboardClient({
       trip_id: trip.id,
       user_id: currentUserId,
       seat_number: seatNumber,
-      pickup_location: pickupLocation,
+      pickup_location: submission.pickup_location ?? null,
+      dropoff_location: submission.dropoff_location ?? null,
+      free_by_time: submission.free_by_time ?? null,
+      admin_message: null,
       status: 'pending',
       payment_status: 'pending',
       approved_time: null,
@@ -325,7 +331,9 @@ export function DashboardClient({
             tripId: trip.id,
             bookingId: myBooking.id,
             seatNumber,
-            pickupLocation,
+            pickupLocation: submission.pickup_location ?? null,
+            dropoffLocation: submission.dropoff_location ?? null,
+            freeByTime: submission.free_by_time ?? null,
           }),
         });
 
@@ -340,7 +348,7 @@ export function DashboardClient({
           setBookings((prev) =>
             prev.map((b) => (b.id === optimisticId ? (json.booking as Booking) : b))
           );
-          notifyAdminOfBooking(seatNumber, pickupLocation);
+          notifyAdminOfBooking(seatNumber, submission);
         }
       } catch (err: unknown) {
         setBookings((prev) => prev.filter((b) => b.id !== optimisticId));
@@ -357,7 +365,9 @@ export function DashboardClient({
         trip_id: trip.id,
         user_id: currentUserId,
         seat_number: seatNumber,
-        pickup_location: pickupLocation,
+        pickup_location: submission.pickup_location ?? null,
+        dropoff_location: submission.dropoff_location ?? null,
+        free_by_time: submission.free_by_time ?? null,
         status: 'pending',
       })
       .select()
@@ -374,12 +384,12 @@ export function DashboardClient({
       setBookings((prev) =>
         prev.map((b) => (b.id === optimisticId ? (newBooking as Booking) : b))
       );
-      notifyAdminOfBooking(seatNumber, pickupLocation);
+      notifyAdminOfBooking(seatNumber, submission);
     }
   }
 
   // Fire-and-forget — booking already committed, email failure shouldn't block the UI.
-  function notifyAdminOfBooking(seatNumber: number, pickupLocation: string) {
+  function notifyAdminOfBooking(seatNumber: number, submission: BookingSubmission) {
     if (!trip) return;
     fetch('/api/notify/booking', {
       method: 'POST',
@@ -387,7 +397,9 @@ export function DashboardClient({
       body: JSON.stringify({
         passengerName: userName,
         passengerEmail: currentUserEmail,
-        pickupLocation,
+        pickupLocation: submission.pickup_location ?? null,
+        dropoffLocation: submission.dropoff_location ?? null,
+        freeByTime: submission.free_by_time ?? null,
         seatNumber,
         tripDate: trip.trip_date,
         tripTime: trip.trip_time,
@@ -511,25 +523,51 @@ export function DashboardClient({
                         <p className="font-mono text-[10px] tracking-widest text-emerald-400 uppercase font-bold">
                           Ride Confirmed
                         </p>
-                        <p className="mt-0.5 text-sm font-semibold text-warmwhite">
-                          Seat {myBooking.seat_number} — Be ready by{' '}
-                          <span className="text-emerald-400 font-mono font-bold">
-                            {formatTime12h(myBooking.approved_time)}
-                          </span>
-                        </p>
+                        {tripCategory === 'campus_to_home' ? (
+                          <p className="mt-0.5 text-sm font-semibold text-warmwhite">
+                            Seat {myBooking.seat_number} — Confirmed
+                          </p>
+                        ) : (
+                          <p className="mt-0.5 text-sm font-semibold text-warmwhite">
+                            Seat {myBooking.seat_number} — Be ready by{' '}
+                            <span className="text-emerald-400 font-mono font-bold">
+                              {formatTime12h(myBooking.approved_time)}
+                            </span>
+                          </p>
+                        )}
                       </div>
                       <div className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 text-xs font-bold flex-shrink-0 ml-3 shadow-[0_0_12px_rgba(16,185,129,0.25)]">
                         ✓
                       </div>
                     </div>
 
-                    {myBooking.pickup_location && (
-                      <div className="pt-2.5 border-t border-emerald-500/15 flex items-center justify-between">
-                        <LocationBadge location={myBooking.pickup_location} />
-                        <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-400/60 font-medium">
-                          Pickup/Dropoff Point
-                        </span>
-                      </div>
+                    {tripCategory === 'campus_to_home' ? (
+                      <>
+                        {myBooking.admin_message && (
+                          <p className="text-sm text-warmwhite/90 leading-relaxed pt-2.5 border-t border-emerald-500/15">
+                            {myBooking.admin_message}
+                          </p>
+                        )}
+                        {(myBooking.dropoff_location || myBooking.free_by_time) && (
+                          <div className="flex items-center justify-between flex-wrap gap-1.5">
+                            <LocationBadge location={myBooking.dropoff_location} />
+                            {myBooking.free_by_time && (
+                              <span className="inline-flex items-center rounded-lg bg-emerald-500/10 border border-emerald-500/25 px-2 py-0.5 text-[11px] font-mono text-emerald-400">
+                                Free by {myBooking.free_by_time}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      myBooking.pickup_location && (
+                        <div className="pt-2.5 border-t border-emerald-500/15 flex items-center justify-between">
+                          <LocationBadge location={myBooking.pickup_location} />
+                          <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-400/60 font-medium">
+                            Pickup Point
+                          </span>
+                        </div>
+                      )
                     )}
                   </div>
                 )}
@@ -564,13 +602,26 @@ export function DashboardClient({
                       <div className="animate-pulse h-2.5 w-2.5 rounded-full bg-signal-amber shadow-[0_0_8px_rgba(224,165,38,0.6)] flex-shrink-0 ml-4" />
                     </div>
 
-                    {myBooking.pickup_location && (
-                      <div className="pt-2.5 border-t border-signal-amber/15 flex items-center justify-between">
-                        <LocationBadge location={myBooking.pickup_location} />
-                        <span className="text-[10px] font-mono uppercase tracking-wider text-warmwhite/40">
-                          Pickup/Dropoff Point
-                        </span>
-                      </div>
+                    {tripCategory === 'campus_to_home' ? (
+                      (myBooking.dropoff_location || myBooking.free_by_time) && (
+                        <div className="pt-2.5 border-t border-signal-amber/15 flex items-center justify-between flex-wrap gap-1.5">
+                          <LocationBadge location={myBooking.dropoff_location} />
+                          {myBooking.free_by_time && (
+                            <span className="text-[10px] font-mono uppercase tracking-wider text-warmwhite/40">
+                              Free by {myBooking.free_by_time}
+                            </span>
+                          )}
+                        </div>
+                      )
+                    ) : (
+                      myBooking.pickup_location && (
+                        <div className="pt-2.5 border-t border-signal-amber/15 flex items-center justify-between">
+                          <LocationBadge location={myBooking.pickup_location} />
+                          <span className="text-[10px] font-mono uppercase tracking-wider text-warmwhite/40">
+                            Pickup Point
+                          </span>
+                        </div>
+                      )
                     )}
                   </div>
                 )}
@@ -720,6 +771,7 @@ export function DashboardClient({
               <BookingModal
                 key="booking-modal"
                 seatNumber={selectedSeat}
+                category={tripCategory}
                 onConfirm={handleBook}
                 onCancel={() => setSelectedSeat(null)}
               />

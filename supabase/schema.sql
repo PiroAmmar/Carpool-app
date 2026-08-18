@@ -69,10 +69,8 @@ create table if not exists public.trips (
   seats_total int not null default 4,
   route_id uuid references public.routes(id),
   direction text check (direction in (
-    'Home -> FAST main campus',
-    'FAST main campus -> Home',
-    'Home -> FAST city campus',
-    'FAST city campus -> Home'
+    'Home -> Campus',
+    'Campus -> Home'
   )),
   rate numeric(10,2),
   status text not null default 'scheduled' check (status in ('scheduled', 'cancelled', 'completed')),
@@ -101,7 +99,10 @@ create table if not exists public.bookings (
   trip_id uuid not null references public.trips(id) on delete cascade,
   user_id uuid not null references public.users(id) on delete cascade,
   seat_number int not null,
-  pickup_location text not null,
+  pickup_location text,
+  dropoff_location text,
+  free_by_time text,
+  admin_message text,
   status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
   approved_time time, -- set by admin on approval
   created_at timestamptz not null default now(),
