@@ -2,6 +2,59 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { getWebPush } from '@/lib/push/webpush';
 import { sendEmail } from '@/lib/email/mailer';
 
+interface NotifyUserParams {
+  userId: string;
+  userEmail: string;
+  title: string;
+  body: string;
+  url?: string;
+  tag?: string;
+  emailSubject: string;
+  emailHtml: string;
+}
+
+/**
+ * Single-recipient version — push if they have a live subscription,
+ * personalized email otherwise. Used for approval/rejection where the
+ * message is specific to one person (unlike notifyAll's BCC broadcast).
+ */
+export async function notifyUser(params: NotifyUserParams) {
+  const { userId, userEmail, title, body, url = '/dashboard', tag, emailSubject, emailHtml } = params;
+  const supabase = createAdminClient();
+
+  const { data: subs } = await supabase
+    .from('push_subscriptions')
+    .select('id, endpoint, p256dh, auth')
+    .eq('user_id', userId);
+
+  if (subs?.length) {
+    try {
+      const webpush = getWebPush();
+      const results = await Promise.allSettled(
+        subs.map((sub) =>
+          webpush.sendNotification(
+            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+            JSON.stringify({ title, body, url, tag })
+          )
+        )
+      );
+
+      const succeeded = results.some((r) => r.status === 'fulfilled');
+      const staleIds = subs.filter((_, i) => results[i].status === 'rejected').map((s) => s.id);
+      if (staleIds.length) {
+        await supabase.from('push_subscriptions').delete().in('id', staleIds);
+      }
+
+      if (succeeded) return { pushed: true, emailed: false };
+    } catch {
+      // VAPID not configured — fall through to email.
+    }
+  }
+
+  const { error } = await sendEmail({ to: userEmail, subject: emailSubject, html: emailHtml });
+  return { pushed: false, emailed: !error };
+}
+
 interface NotifyAllParams {
   title: string;
   body: string;

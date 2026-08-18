@@ -347,6 +347,7 @@ export function AdminClient({
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        userId: passenger.id,
         passengerName: passenger.full_name || passenger.email.split('@')[0],
         passengerEmail: passenger.email,
         approvedTime: submission.approved_time ?? null,
@@ -355,7 +356,7 @@ export function AdminClient({
         pickupLocation: booking.pickup_location,
         dropoffLocation: booking.dropoff_location,
       }),
-    }).catch((err) => console.error('[notify] approval email failed:', err));
+    }).catch((err) => console.error('[notify] approval notify failed:', err));
   }
 
   // Fire-and-forget — rejection already committed, email failure shouldn't block the UI.
@@ -368,12 +369,13 @@ export function AdminClient({
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        userId: passenger.id,
         passengerName: passenger.full_name || passenger.email.split('@')[0],
         passengerEmail: passenger.email,
         tripDate: trip.trip_date,
         seatNumber: booking.seat_number,
       }),
-    }).catch((err) => console.error('[notify] rejection email failed:', err));
+    }).catch((err) => console.error('[notify] rejection notify failed:', err));
   }
 
   const PAYMENT_STATUS_CYCLE: Record<Booking['payment_status'], Booking['payment_status']> = {
@@ -526,7 +528,23 @@ export function AdminClient({
       setTrips((prev) => [newTrip as Trip, ...prev]);
       setSelectedTripId(newTrip.id);
       showNotification('New trip scheduled successfully!');
+      notifyPassengersOfNewTrip(newTrip as Trip);
     }
+  }
+
+  // Fire-and-forget — trip already committed, notify failure shouldn't block the UI.
+  function notifyPassengersOfNewTrip(trip: Trip) {
+    const route = routes.find((r) => r.id === trip.route_id);
+
+    fetch('/api/notify/trip-created', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tripDate: trip.trip_date,
+        tripTime: trip.trip_time,
+        route: route ? `${route.name} — ${route.stops.join(' → ')}` : undefined,
+      }),
+    }).catch((err) => console.error('[notify] trip-created notify failed:', err));
   }
 
   /* ── Route Preset Handlers ─────────────────────────────── */
