@@ -21,6 +21,7 @@ export interface Booking {
   status: 'pending' | 'approved' | 'rejected';
   payment_status: 'pending' | 'paid' | 'waived';
   approved_time: string | null;
+  rate_applied: number | null;
   created_at: string;
 }
 

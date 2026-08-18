@@ -51,7 +51,7 @@ export default async function DashboardPage(props: {
 
     supabase
       .from('users')
-      .select('role, whatsapp, phone')
+      .select('role, whatsapp, phone, custom_rate')
       .eq('id', user.id)
       .maybeSingle(),
 
@@ -85,6 +85,7 @@ export default async function DashboardPage(props: {
 
   const userWhatsApp = userProfileRes.data?.whatsapp || userProfileRes.data?.phone || null;
   const globalRate = settingsRes.data?.rate ?? null;
+  const userCustomRate = (userProfileRes.data?.custom_rate as number | null | undefined) ?? null;
 
   return (
     <DashboardClient
@@ -97,6 +98,7 @@ export default async function DashboardPage(props: {
       userName={userName}
       userWhatsApp={userWhatsApp}
       globalRate={globalRate}
+      userCustomRate={userCustomRate}
       isAdmin={isAdmin}
     />
   );

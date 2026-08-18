@@ -25,6 +25,7 @@ interface DashboardClientProps {
   userName: string;
   userWhatsApp?: string | null;
   globalRate?: number | null;
+  userCustomRate?: number | null;
   isAdmin?: boolean;
 }
 
@@ -42,7 +43,7 @@ function formatTripDateTime(date: string, time: string): string {
 
 function formatTripDateOnly(dateStr: string): string {
   try {
-    const dt = new Date(dateStr);
+    const dt = new Date(dateStr.includes('T') ? dateStr : `${dateStr}T00:00:00`);
     if (Number.isNaN(dt.getTime())) return dateStr;
     return dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
   } catch {
@@ -72,11 +73,13 @@ export function DashboardClient({
   userName,
   userWhatsApp,
   globalRate: initialGlobalRate,
+  userCustomRate: initialUserCustomRate,
   isAdmin,
 }: DashboardClientProps) {
   const [trips, setTrips] = useState<Trip[]>(initialTrips);
   const [routes] = useState<Route[]>(initialRoutes);
   const [globalRate, setGlobalRate] = useState<number | null>(initialGlobalRate ?? null);
+  const [userCustomRate, setUserCustomRate] = useState<number | null>(initialUserCustomRate ?? null);
   const [activeTripId, setActiveTripId] = useState<string | null>(
     initialTripId || (initialTrips.length > 0 ? initialTrips[0].id : null)
   );
@@ -88,6 +91,12 @@ export function DashboardClient({
   if (prevWhatsAppProp !== userWhatsApp) {
     setPrevWhatsAppProp(userWhatsApp);
     setWhatsAppNumber(userWhatsApp || null);
+  }
+
+  const [prevCustomRateProp, setPrevCustomRateProp] = useState(initialUserCustomRate);
+  if (prevCustomRateProp !== initialUserCustomRate) {
+    setPrevCustomRateProp(initialUserCustomRate);
+    setUserCustomRate(initialUserCustomRate ?? null);
   }
 
   const trip = useMemo(
@@ -149,23 +158,28 @@ export function DashboardClient({
         setTrips(tData as Trip[]);
       }
 
-      // 4. Current user WhatsApp & Profile live sync
+      // 4. Current user WhatsApp & Profile live sync (incl. custom_rate)
       if (currentUserId) {
         const { data: uData } = await supabase
           .from('users')
-          .select('whatsapp, phone')
+          .select('whatsapp, phone, custom_rate')
           .eq('id', currentUserId)
           .maybeSingle();
         if (uData) {
           const liveNum = uData.whatsapp || uData.phone || null;
           setWhatsAppNumber(liveNum);
+          setUserCustomRate(
+            uData.custom_rate !== null && uData.custom_rate !== undefined
+              ? Number(uData.custom_rate)
+              : null
+          );
         }
       }
     };
 
     const interval = setInterval(fetchLatest, 2500);
 
-    // Users channel (for live WhatsApp number updates)
+    // Users channel (for live WhatsApp number and custom_rate updates)
     const usersChannel = supabase
       .channel('dashboard-users')
       .on(
@@ -173,10 +187,22 @@ export function DashboardClient({
         { event: '*', schema: 'public', table: 'users' },
         (payload) => {
           if (payload.new && typeof payload.new === 'object') {
-            const u = payload.new as { id?: string; whatsapp?: string | null; phone?: string | null };
+            const u = payload.new as {
+              id?: string;
+              whatsapp?: string | null;
+              phone?: string | null;
+              custom_rate?: number | null;
+            };
             if (u.id === currentUserId) {
               const liveNum = u.whatsapp || u.phone || null;
               setWhatsAppNumber(liveNum);
+              if ('custom_rate' in u) {
+                setUserCustomRate(
+                  u.custom_rate !== null && u.custom_rate !== undefined
+                    ? Number(u.custom_rate)
+                    : null
+                );
+              }
             }
           }
         }
@@ -294,7 +320,8 @@ export function DashboardClient({
   }, [trip, myBooking]);
 
   const tripRate = (trip as (Trip & { rate?: number }) | null)?.rate ?? null;
-  const rate = tripRate ?? globalRate ?? null;
+  // Priority: Passenger Custom Rate > Per-Trip Override Rate > Global Default Rate
+  const rate = userCustomRate ?? tripRate ?? globalRate ?? null;
   const tripCategory = useMemo(() => categoryOf(trip?.direction), [trip]);
 
   /* ── Booking flow ─────────────────────────────────────────────── */
@@ -314,6 +341,7 @@ export function DashboardClient({
       status: 'pending',
       payment_status: 'pending',
       approved_time: null,
+      rate_applied: rate,
       created_at: new Date().toISOString(),
     };
 
@@ -358,33 +386,41 @@ export function DashboardClient({
       return;
     }
 
-    // Standard initial booking insert
-    const { data: newBooking, error } = await supabase
-      .from('bookings')
-      .insert({
-        trip_id: trip.id,
-        user_id: currentUserId,
-        seat_number: seatNumber,
-        pickup_location: submission.pickup_location ?? null,
-        dropoff_location: submission.dropoff_location ?? null,
-        free_by_time: submission.free_by_time ?? null,
-        status: 'pending',
-      })
-      .select()
-      .single();
+    // Standard initial booking — goes through API route so rate_applied is
+    // resolved server-side (trip.rate > users.custom_rate > settings.rate).
+    // The browser never touches users.custom_rate directly.
+    try {
+      const res = await fetch('/api/bookings/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tripId: trip.id,
+          seatNumber,
+          pickupLocation: submission.pickup_location ?? null,
+          dropoffLocation: submission.dropoff_location ?? null,
+          freeByTime: submission.free_by_time ?? null,
+        }),
+      });
 
-    if (error) {
-      setBookings((prev) => prev.filter((b) => b.id !== optimisticId));
-      if (error.code === '23505') {
-        setBookingError(`Seat ${seatNumber} was just taken. Please choose another seat.`);
+      const json = await res.json();
+
+      if (!res.ok || !json.success) {
+        setBookings((prev) => prev.filter((b) => b.id !== optimisticId));
+        if (json.code === '23505') {
+          setBookingError(`Seat ${seatNumber} was just taken. Please choose another seat.`);
+        } else {
+          setBookingError(json.error ?? 'Failed to book seat.');
+        }
       } else {
-        setBookingError(error.message);
+        setBookings((prev) =>
+          prev.map((b) => (b.id === optimisticId ? (json.booking as Booking) : b))
+        );
+        notifyAdminOfBooking(seatNumber, submission);
       }
-    } else if (newBooking) {
-      setBookings((prev) =>
-        prev.map((b) => (b.id === optimisticId ? (newBooking as Booking) : b))
-      );
-      notifyAdminOfBooking(seatNumber, submission);
+    } catch (err) {
+      setBookings((prev) => prev.filter((b) => b.id !== optimisticId));
+      const msg = err instanceof Error ? err.message : 'Network error while booking.';
+      setBookingError(msg);
     }
   }
 
@@ -665,12 +701,21 @@ export function DashboardClient({
                   </div>
 
                   {rate !== null && (
-                    <div className="inline-flex items-center gap-1.5 rounded-full bg-chrome/5 border border-chrome/10 px-2.5 py-0.5 flex-shrink-0">
-                      <span className="font-mono text-[10px] uppercase tracking-wider text-warmwhite/40 font-medium">
+                    <div
+                      className="inline-flex items-center gap-1.5 rounded-full bg-chrome/5 border border-chrome/10 px-2.5 py-0.5 flex-shrink-0"
+                      suppressHydrationWarning
+                    >
+                      <span
+                        className="font-mono text-[11px] uppercase tracking-wider text-warmwhite/40 font-medium"
+                        suppressHydrationWarning
+                      >
                         Fare
                       </span>
-                      <span className="font-mono text-xs font-bold text-warmwhite">
-                        <span className="text-[10px] text-warmwhite/50 font-sans mr-0.5">Rs.</span>
+                      <span
+                        className="font-mono text-[13px] font-bold text-warmwhite"
+                        suppressHydrationWarning
+                      >
+                        <span className="text-[11.5px] text-warmwhite/50 font-sans mr-0.5">Rs.</span>
                         {rate}
                       </span>
                     </div>

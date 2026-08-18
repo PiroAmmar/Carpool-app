@@ -2,6 +2,15 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 
+/**
+ * POST /api/bookings/create
+ *
+ * Handles the initial (non-rebook) booking creation with server-side rate
+ * resolution: trip.rate > users.custom_rate > settings.rate
+ *
+ * The rate is frozen on rate_applied at insert time so later custom_rate
+ * edits never rewrite the passenger's historical booking amount.
+ */
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
@@ -12,19 +21,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { seatNumber, pickupLocation, dropoffLocation, freeByTime, bookingId } = body;
-    let tripId = body.tripId;
-
-    if (!tripId && bookingId) {
-      const { data: existingBooking } = await supabase
-        .from("bookings")
-        .select("trip_id")
-        .eq("id", bookingId)
-        .maybeSingle();
-      if (existingBooking?.trip_id) {
-        tripId = existingBooking.trip_id;
-      }
-    }
+    const { tripId, seatNumber, pickupLocation, dropoffLocation, freeByTime } = body;
 
     const hasLocation = Boolean(pickupLocation) || Boolean(dropoffLocation && freeByTime);
     if (!tripId || !seatNumber || !hasLocation) {
@@ -34,42 +31,15 @@ export async function POST(request: Request) {
     const userId = authData.user.id;
     const client = createAdminClient();
 
-    // Snapshot the rate at booking time: trip override > passenger
-    // custom rate > global rate. Frozen on the row so later custom_rate
-    // edits never rewrite this booking's historical amount.
+    // Snapshot the rate at booking time: trip override > passenger custom rate > global rate.
+    // Uses admin client so we can safely read users.custom_rate server-side
+    // without ever exposing it to the passenger's browser session.
     const [{ data: tripRow }, { data: userRow }, { data: settingsRow }] = await Promise.all([
       client.from("trips").select("rate").eq("id", tripId).maybeSingle(),
       client.from("users").select("custom_rate").eq("id", userId).maybeSingle(),
       client.from("settings").select("rate").eq("id", 1).maybeSingle(),
     ]);
     const rateApplied = userRow?.custom_rate ?? tripRow?.rate ?? settingsRow?.rate ?? null;
-
-    // If bookingId was provided, update that booking row directly
-    if (bookingId) {
-      const { data: updatedBooking, error: updateErr } = await client
-        .from("bookings")
-        .update({
-          seat_number: seatNumber,
-          pickup_location: pickupLocation ?? null,
-          dropoff_location: dropoffLocation ?? null,
-          free_by_time: freeByTime ?? null,
-          status: "pending",
-          approved_time: null,
-          admin_message: null,
-          rate_applied: rateApplied,
-        })
-        .eq("id", bookingId)
-        .eq("user_id", userId)
-        .select()
-        .single();
-
-      if (!updateErr && updatedBooking) {
-        return NextResponse.json({ success: true, booking: updatedBooking });
-      }
-    }
-
-    // Delete any old/rejected bookings for this user on this trip and insert fresh
-    await client.from("bookings").delete().eq("trip_id", tripId).eq("user_id", userId);
 
     const { data: newBooking, error: insertErr } = await client
       .from("bookings")
@@ -81,20 +51,19 @@ export async function POST(request: Request) {
         dropoff_location: dropoffLocation ?? null,
         free_by_time: freeByTime ?? null,
         status: "pending",
-        approved_time: null,
         rate_applied: rateApplied,
       })
       .select()
       .single();
 
     if (insertErr) {
-      console.error("[rebook api] Insert error:", insertErr.message);
-      return NextResponse.json({ error: insertErr.message }, { status: 500 });
+      console.error("[bookings/create] Insert error:", insertErr.message);
+      return NextResponse.json({ error: insertErr.message, code: insertErr.code }, { status: 500 });
     }
 
     return NextResponse.json({ success: true, booking: newBooking });
   } catch (err: unknown) {
-    console.error("[rebook api] Exception:", err);
+    console.error("[bookings/create] Exception:", err);
     const msg = err instanceof Error ? err.message : "Internal server error";
     return NextResponse.json({ error: msg }, { status: 500 });
   }

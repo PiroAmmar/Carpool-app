@@ -1,3 +1,7 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+
 function WhatsAppIcon() {
   return (
     <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
@@ -6,12 +10,65 @@ function WhatsAppIcon() {
   );
 }
 
-export function ContactCard() {
+function CopyIcon() {
   return (
-    <div className="mt-8 pt-6 border-t border-chrome/10">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <rect x="9" y="9" width="13" height="13" rx="2" />
+      <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  );
+}
+
+export function ContactCard() {
+  const acct = '99910110473142';
+  const [copied, setCopied] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  function handleCopy() {
+    navigator.clipboard?.writeText(acct).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(() => {});
+  }
+
+  if (!mounted) {
+    return (
+      <div className="mt-8 pt-6 border-t border-chrome/10">
+        <p className="font-mono text-xs font-semibold tracking-widest text-warmwhite/90 uppercase mb-3">
+          Driver Contact
+        </p>
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-warmwhite">Syed Ammar Ali</p>
+            <p className="mt-0.5 font-mono text-sm text-warmwhite/40">+92 334 2121401</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    /* suppressHydrationWarning guards against browser extensions (e.g. ad/finance
+       blockers) that strip DOM nodes containing account numbers before React hydrates */
+    <div className="mt-8 pt-6 border-t border-chrome/10" suppressHydrationWarning>
+      {/* ── Section label ─────────────────────────────── */}
       <p className="font-mono text-xs font-semibold tracking-widest text-warmwhite/90 uppercase mb-3">
         Driver Contact
       </p>
+
+      {/* ── Name + WhatsApp row ────────────────────────── */}
       <div className="flex items-center justify-between gap-4">
         <div>
           <p className="text-sm font-medium text-warmwhite">Syed Ammar Ali</p>
@@ -28,6 +85,35 @@ export function ContactCard() {
             <WhatsAppIcon />
           </span>
         </a>
+      </div>
+
+      {/* ── Online transfer sub-section ───────────────── */}
+      <div className="mt-4 pt-3.5 border-t border-dashed border-chrome/15">
+        <p className="font-mono text-[10px] tracking-widest text-warmwhite/35 uppercase mb-3">
+          For online transfer
+        </p>
+
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-warmwhite">Syed Ammar Ali</p>
+            <p className="text-xs text-warmwhite/40 mt-0.5">Meezan Bank</p>
+          </div>
+          <button
+            onClick={handleCopy}
+            className={`group flex-shrink-0 flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[11px] transition-all duration-200 active:scale-[0.97] ${
+              copied
+                ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
+                : 'border-chrome/15 bg-chrome/5 text-warmwhite/60 hover:text-warmwhite hover:bg-chrome/10'
+            }`}
+          >
+            {copied ? <CheckIcon /> : <CopyIcon />}
+            {copied ? 'Copied!' : 'Copy'}
+          </button>
+        </div>
+
+        <p className="mt-2.5 font-mono text-sm text-warmwhite/80 tracking-wider">
+          {acct}
+        </p>
       </div>
     </div>
   );

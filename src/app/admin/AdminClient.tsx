@@ -19,6 +19,7 @@ interface UserRecord {
   phone: string | null;
   whatsapp: string | null;
   role: string;
+  custom_rate: number | null;
   created_at: string;
 }
 
@@ -534,7 +535,8 @@ export function AdminClient({
 
   // Fire-and-forget — trip already committed, notify failure shouldn't block the UI.
   function notifyPassengersOfNewTrip(trip: Trip) {
-    const route = routes.find((r) => r.id === trip.route_id);
+    const category = categoryOf(trip.direction);
+    const categoryLabel = category === 'campus_to_home' ? 'Campus to Home' : 'Home to Campus';
 
     fetch('/api/notify/trip-created', {
       method: 'POST',
@@ -542,7 +544,7 @@ export function AdminClient({
       body: JSON.stringify({
         tripDate: trip.trip_date,
         tripTime: trip.trip_time,
-        route: route ? `${route.name} — ${route.stops.join(' → ')}` : undefined,
+        category: categoryLabel,
       }),
     }).catch((err) => console.error('[notify] trip-created notify failed:', err));
   }
@@ -851,10 +853,19 @@ export function AdminClient({
                     >
                       <div className="bezel-core p-4 flex items-center justify-between gap-4">
                         <div className="flex flex-col gap-1 min-w-0">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-mono text-xs bg-chrome/10 text-warmwhite px-2 py-0.5 rounded">
                               Seat {b.seat_number}
                             </span>
+                            {b.rate_applied !== null && b.rate_applied !== undefined ? (
+                              <span className="font-mono text-[11px] bg-amber-500/10 text-amber-400 border border-amber-500/25 px-2 py-0.5 rounded font-semibold">
+                                Rs. {b.rate_applied}
+                              </span>
+                            ) : passenger?.custom_rate !== null && passenger?.custom_rate !== undefined ? (
+                              <span className="font-mono text-[11px] bg-amber-500/10 text-amber-400 border border-amber-500/25 px-2 py-0.5 rounded font-semibold">
+                                Rs. {passenger.custom_rate} (custom)
+                              </span>
+                            ) : null}
                             <span className="text-sm font-semibold text-warmwhite truncate">
                               {passengerName}
                             </span>
@@ -1149,7 +1160,7 @@ export function AdminClient({
                 <div key={u.id} className="bezel-shell">
                   <div className="bezel-core p-4 flex items-center justify-between gap-4">
                     <div className="flex flex-col gap-1 min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm font-semibold text-warmwhite">
                           {u.full_name || u.email.split('@')[0]}
                         </span>
@@ -1158,6 +1169,11 @@ export function AdminClient({
                         }`}>
                           {u.role}
                         </span>
+                        {u.custom_rate !== null && u.custom_rate !== undefined && (
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded uppercase bg-amber-500/15 text-amber-400 border border-amber-500/30 font-semibold tracking-wider">
+                            Rs. {u.custom_rate} custom
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs text-warmwhite/50 font-mono truncate">{u.email}</p>
                       {u.whatsapp || u.phone ? (
@@ -1167,9 +1183,14 @@ export function AdminClient({
                       ) : (
                         <p className="text-xs text-warmwhite/35 font-mono">No WhatsApp set</p>
                       )}
-                      <p className="text-[11px] text-warmwhite/40 font-mono">
-                        Bookings count: {userBookings.length}
-                      </p>
+                      <div className="flex items-center gap-2 text-[11px] font-mono text-warmwhite/40">
+                        <span>Bookings count: {userBookings.length}</span>
+                        {u.custom_rate !== null && u.custom_rate !== undefined ? (
+                          <span className="text-amber-400 font-medium">· Rate: Rs. {u.custom_rate}</span>
+                        ) : (
+                          <span className="text-warmwhite/30">· Rate: Default</span>
+                        )}
+                      </div>
                     </div>
 
                     <div className="flex flex-col gap-2 flex-shrink-0">
@@ -1278,13 +1299,35 @@ export function AdminClient({
 
       {detailsUser && (
         <PassengerDetailsModal
+          key={detailsUser.id}
           passengerName={detailsUser.full_name || detailsUser.email.split('@')[0]}
           passengerEmail={detailsUser.email}
           bookings={bookings.filter((b) => b.user_id === detailsUser.id)}
           trips={trips}
           routes={routes}
           globalRate={globalRate}
+          customRate={detailsUser.custom_rate}
           onClose={() => setDetailsUser(null)}
+          onSaveCustomRate={async (rate) => {
+            const { error } = await supabase
+              .from('users')
+              .update({ custom_rate: rate })
+              .eq('id', detailsUser.id);
+            if (!error) {
+              setUsers((prev) =>
+                prev.map((u) => (u.id === detailsUser.id ? { ...u, custom_rate: rate } : u))
+              );
+              setDetailsUser((prev) => (prev ? { ...prev, custom_rate: rate } : prev));
+              showNotification(
+                rate !== null
+                  ? `Custom rate Rs. ${rate} saved for ${detailsUser.full_name || detailsUser.email}`
+                  : `Custom rate reset to default for ${detailsUser.full_name || detailsUser.email}`
+              );
+            } else {
+              console.error('[admin] Failed to save custom rate:', error.message);
+              showNotification(`Failed to save custom rate: ${error.message}`);
+            }
+          }}
         />
       )}
     </div>

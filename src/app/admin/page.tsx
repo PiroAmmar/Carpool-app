@@ -12,6 +12,7 @@ interface UserRecord {
   phone: string | null;
   whatsapp: string | null;
   role: string;
+  custom_rate: number | null;
   created_at: string;
 }
 
