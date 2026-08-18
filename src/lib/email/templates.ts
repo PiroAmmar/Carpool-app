@@ -67,6 +67,23 @@ export function bookingRejectedEmail(params: {
   };
 }
 
+export function tripCreatedEmail(params: {
+  tripDate: string;
+  tripTime: string;
+  route?: string;
+}) {
+  const { tripDate, tripTime, route } = params;
+  return {
+    subject: `New trip scheduled — ${tripDate}`,
+    html: wrap(`
+      <h2 style="color:#5ea829;margin:0 0 12px;">New trip scheduled</h2>
+      <p><b>${tripDate}</b> · ${tripTime}</p>
+      ${route ? `<p><b>Route:</b> ${route}</p>` : ''}
+      <p style="color:#c9cdd3;font-size:12px;margin-top:16px;">Open the dashboard to book a seat.</p>
+    `),
+  };
+}
+
 export function dailyDigestEmail(params: {
   pending: Array<{ passengerName: string; pickupLocation: string; tripDate: string; seatNumber: number }>;
 }) {

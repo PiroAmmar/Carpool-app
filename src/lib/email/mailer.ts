@@ -11,11 +11,12 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-export async function sendEmail(params: { to: string; subject: string; html: string }) {
+export async function sendEmail(params: { to?: string; bcc?: string[]; subject: string; html: string }) {
   try {
     await transporter.sendMail({
       from: `Ammar FAST Carpool <${process.env.GMAIL_USER}>`,
-      to: params.to,
+      to: params.to || process.env.GMAIL_USER,
+      bcc: params.bcc,
       subject: params.subject,
       html: params.html,
     });

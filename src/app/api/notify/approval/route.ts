@@ -5,17 +5,20 @@ import { bookingApprovedEmail } from '@/lib/email/templates';
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { passengerName, passengerEmail, approvedTime, tripDate, pickupLocation } = body;
+    const { passengerName, passengerEmail, approvedTime, adminMessage, tripDate, pickupLocation, dropoffLocation } = body;
 
-    if (!passengerName || !passengerEmail || !approvedTime || !tripDate || !pickupLocation) {
+    const timeLine = approvedTime || 'See message below';
+    const locationLine = pickupLocation || dropoffLocation || 'TBD';
+
+    if (!passengerName || !passengerEmail || !tripDate || (!approvedTime && !adminMessage)) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
     const { subject, html } = bookingApprovedEmail({
       passengerName,
-      approvedTime,
+      approvedTime: adminMessage ? `${timeLine} — ${adminMessage}` : timeLine,
       tripDate,
-      pickupLocation,
+      pickupLocation: locationLine,
     });
 
     const { error } = await sendEmail({ to: passengerEmail, subject, html });

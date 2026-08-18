@@ -8,7 +8,9 @@ import { TripSchedulerModal } from '@/components/TripSchedulerModal';
 import { RoutePresetModal } from '@/components/RoutePresetModal';
 import { PassengerDetailsModal } from '@/components/PassengerDetailsModal';
 import { LocationBadge } from '@/components/LocationBadge';
+import { categoryOf } from '@/lib/tripCategory';
 import type { Trip, Booking, Route } from '@/types';
+import type { ApprovalSubmission } from '@/types';
 
 interface UserRecord {
   id: string;
@@ -216,6 +218,8 @@ export function AdminClient({
     [trips, selectedTripId, filteredTripsForDropdown]
   );
 
+  const activeTripCategory = useMemo(() => categoryOf(activeTrip?.direction), [activeTrip]);
+
   const activeTripBookings = useMemo(
     () => (activeTrip ? bookings.filter((b) => b.trip_id === activeTrip.id) : []),
     [bookings, activeTrip]
@@ -304,22 +308,24 @@ export function AdminClient({
   }
 
   /* ── Booking Actions ───────────────────────────────────── */
-  async function handleApproveConfirm(approvedTime: string) {
+  async function handleApproveConfirm(submission: ApprovalSubmission) {
     if (!approvingBooking) return;
     const targetId = approvingBooking.id;
 
+    const updatePayload = submission.admin_message
+      ? { status: 'approved' as const, admin_message: submission.admin_message }
+      : { status: 'approved' as const, approved_time: submission.approved_time ?? null };
+
     setBookings((prev) =>
       prev.map((b) =>
-        b.id === targetId
-          ? { ...b, status: 'approved', approved_time: approvedTime }
-          : b
+        b.id === targetId ? { ...b, ...updatePayload } : b
       )
     );
     setApprovingBooking(null);
 
     const { error } = await supabase
       .from('bookings')
-      .update({ status: 'approved', approved_time: approvedTime })
+      .update(updatePayload)
       .eq('id', targetId);
 
     if (error) {
@@ -327,12 +333,12 @@ export function AdminClient({
       showNotification(`Failed to approve: ${error.message}`);
     } else {
       showNotification('Booking approved successfully');
-      notifyPassengerOfApproval(approvingBooking, approvedTime);
+      notifyPassengerOfApproval(approvingBooking, submission);
     }
   }
 
   // Fire-and-forget — approval already committed, email failure shouldn't block the UI.
-  function notifyPassengerOfApproval(booking: Booking, approvedTime: string) {
+  function notifyPassengerOfApproval(booking: Booking, submission: ApprovalSubmission) {
     const passenger = users.find((u) => u.id === booking.user_id);
     const trip = trips.find((t) => t.id === booking.trip_id);
     if (!passenger?.email || !trip) return;
@@ -343,9 +349,11 @@ export function AdminClient({
       body: JSON.stringify({
         passengerName: passenger.full_name || passenger.email.split('@')[0],
         passengerEmail: passenger.email,
-        approvedTime,
+        approvedTime: submission.approved_time ?? null,
+        adminMessage: submission.admin_message ?? null,
         tripDate: trip.trip_date,
         pickupLocation: booking.pickup_location,
+        dropoffLocation: booking.dropoff_location,
       }),
     }).catch((err) => console.error('[notify] approval email failed:', err));
   }
@@ -833,8 +841,19 @@ export function AdminClient({
                               {passengerName}
                             </span>
                           </div>
-                          <div className="my-0.5">
-                            <LocationBadge location={b.pickup_location} size="sm" />
+                          <div className="my-0.5 flex items-center gap-1.5 flex-wrap">
+                            {activeTripCategory === 'campus_to_home' ? (
+                              <>
+                                <LocationBadge location={b.dropoff_location} size="sm" />
+                                {b.free_by_time && (
+                                  <span className="inline-flex items-center rounded-lg bg-signal-amber/10 border border-signal-amber/25 px-2 py-0.5 text-[11px] font-mono text-signal-amber">
+                                    Free by {b.free_by_time}
+                                  </span>
+                                )}
+                              </>
+                            ) : (
+                              <LocationBadge location={b.pickup_location} size="sm" />
+                            )}
                           </div>
                           {passenger?.whatsapp || passenger?.phone ? (
                             <a
@@ -849,11 +868,17 @@ export function AdminClient({
                           ) : (
                             <span className="text-[11px] text-warmwhite/35 font-mono">No WhatsApp set</span>
                           )}
-                          {b.approved_time && (
-                            <p className="text-[11px] text-emerald-400 font-mono">
-                              Approved Time: {formatTime12h(b.approved_time)}
-                            </p>
-                          )}
+                          {activeTripCategory === 'campus_to_home'
+                            ? b.admin_message && (
+                                <p className="text-[11px] text-emerald-400 font-mono max-w-[220px] truncate" title={b.admin_message}>
+                                  Message: {b.admin_message}
+                                </p>
+                              )
+                            : b.approved_time && (
+                                <p className="text-[11px] text-emerald-400 font-mono">
+                                  Approved Time: {formatTime12h(b.approved_time)}
+                                </p>
+                              )}
                         </div>
 
                         {/* Status / Actions */}
@@ -1208,7 +1233,10 @@ export function AdminClient({
             users.find((u) => u.id === approvingBooking.user_id)?.full_name || 'Passenger'
           }
           seatNumber={approvingBooking.seat_number}
+          category={categoryOf(trips.find((t) => t.id === approvingBooking.trip_id)?.direction)}
           pickupLocation={approvingBooking.pickup_location}
+          dropoffLocation={approvingBooking.dropoff_location}
+          freeByTime={approvingBooking.free_by_time}
           onConfirm={handleApproveConfirm}
           onCancel={() => setApprovingBooking(null)}
         />

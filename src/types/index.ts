@@ -32,3 +32,14 @@ export interface Route {
 }
 
 export type SeatStatus = 'available' | 'pending' | 'approved' | 'mine-pending';
+
+export interface BookingSubmission {
+  pickup_location?: string;
+  dropoff_location?: string;
+  free_by_time?: string;
+}
+
+export interface ApprovalSubmission {
+  approved_time?: string;
+  admin_message?: string;
+}
