@@ -177,6 +177,7 @@ export function DashboardClient({
       }
     };
 
+    fetchLatest();
     const interval = setInterval(fetchLatest, 2500);
 
     // Users channel (for live WhatsApp number and custom_rate updates)
@@ -506,14 +507,14 @@ export function DashboardClient({
           }
         }}
         isAdmin={isAdmin}
-        onUpdateWhatsApp={(num) => setWhatsAppNumber(num)}
+        onUpdateWhatsApp={setWhatsAppNumber}
       />
 
       <div className="w-full max-w-sm flex-1 flex flex-col relative z-0">
         <HudBar rate={rate} />
         <div className="px-6 py-6 flex flex-col flex-1">
           {/* ── WhatsApp missing alert banner ─────────────────────────── */}
-          {!isAdmin && !whatsAppNumber && (
+          {!isAdmin && !Boolean(whatsAppNumber && whatsAppNumber.trim()) && (
             <motion.div
               initial={{ opacity: 0, y: -6 }}
               animate={{ opacity: 1, y: 0 }}
