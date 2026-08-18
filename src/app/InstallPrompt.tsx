@@ -37,8 +37,10 @@ export function InstallPrompt() {
     // Safari (iOS and macOS) never fires beforeinstallprompt — there's no
     // programmatic install API on WebKit. Show manual instructions instead.
     if (isIOSSafari()) {
-      setShowIOSInstructions(true);
-      setVisible(true);
+      queueMicrotask(() => {
+        setShowIOSInstructions(true);
+        setVisible(true);
+      });
       return;
     }
 

@@ -15,19 +15,34 @@ export function PushToggle() {
   const [status, setStatus] = useState<Status>("checking");
 
   useEffect(() => {
-    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
-      setStatus("unsupported");
-      return;
-    }
-    if (Notification.permission === "denied") {
-      setStatus("denied");
-      return;
+    let mounted = true;
+
+    async function checkSubscription() {
+      if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+        if (mounted) setStatus("unsupported");
+        return;
+      }
+      if (Notification.permission === "denied") {
+        if (mounted) setStatus("denied");
+        return;
+      }
+
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        if (mounted) {
+          setStatus(sub ? "subscribed" : "unsubscribed");
+        }
+      } catch (err) {
+        console.error("[push] Failed to get subscription:", err);
+      }
     }
 
-    navigator.serviceWorker.ready.then(async (reg) => {
-      const sub = await reg.pushManager.getSubscription();
-      setStatus(sub ? "subscribed" : "unsubscribed");
-    });
+    checkSubscription();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   async function subscribe() {
