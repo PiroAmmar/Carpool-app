@@ -1,12 +1,20 @@
-# 🚗 Carpool Hub (Ammar FAST Carpool)
+<div align="center">
+  <img src="./public/favicon.svg" alt="Carpool Hub Logo" width="130" />
+  <h1>🚗 Carpool Hub (Ammar FAST Carpool)</h1>
+  <p><strong>Real-time closed-group carpooling & fleet coordination Progressive Web Application for FAST NUCES</strong></p>
 
-[![Next.js](https://img.shields.io/badge/Next.js-16.3.0-black?style=flat-square&logo=next.js)](https://nextjs.org/)
-[![React](https://img.shields.io/badge/React-19.2.8-61DAFB?style=flat-square&logo=react)](https://react.dev/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-38B2AC?style=flat-square&logo=tailwind-css)](https://tailwindcss.com/)
-[![Supabase](https://img.shields.io/badge/Supabase-Database%20%7C%20Auth%20%7C%20Realtime-3ECF8E?style=flat-square&logo=supabase)](https://supabase.com/)
-[![Web Push](https://img.shields.io/badge/PWA-Web%20Push%20Enabled-blueviolet?style=flat-square&logo=pwa)](https://web.dev/progressive-web-apps/)
-[![License](https://img.shields.io/badge/License-Private-crimson?style=flat-square)](#license)
+  <p>
+    <a href="https://nextjs.org/"><img src="https://img.shields.io/badge/Next.js-16.3.0-black?style=flat-square&logo=next.js" alt="Next.js" /></a>
+    <a href="https://react.dev/"><img src="https://img.shields.io/badge/React-19.2.8-61DAFB?style=flat-square&logo=react" alt="React" /></a>
+    <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-5.x-3178C6?style=flat-square&logo=typescript" alt="TypeScript" /></a>
+    <a href="https://tailwindcss.com/"><img src="https://img.shields.io/badge/Tailwind_CSS-v4-38B2AC?style=flat-square&logo=tailwind-css" alt="Tailwind CSS" /></a>
+    <a href="https://supabase.com/"><img src="https://img.shields.io/badge/Supabase-Database%20%7C%20Auth%20%7C%20Realtime-3ECF8E?style=flat-square&logo=supabase" alt="Supabase" /></a>
+    <a href="https://web.dev/progressive-web-apps/"><img src="https://img.shields.io/badge/PWA-Web%20Push%20Enabled-blueviolet?style=flat-square&logo=pwa" alt="PWA" /></a>
+    <a href="#license"><img src="https://img.shields.io/badge/License-Private-crimson?style=flat-square" alt="License" /></a>
+  </p>
+</div>
+
+<br />
 
 **Carpool Hub** is a real-time, closed-group carpooling and fleet coordination Progressive Web Application (PWA) built specifically for a dedicated university commute group (1 driver/admin and 10–15 regular passengers) traveling to and from **FAST NUCES**. 
 
