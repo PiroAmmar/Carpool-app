@@ -314,6 +314,7 @@ export function DashboardClient({
       status: 'pending',
       payment_status: 'pending',
       approved_time: null,
+      rate_applied: null,
       created_at: new Date().toISOString(),
     };
 

@@ -31,7 +31,7 @@ interface AdminClientProps {
   currentUserId: string;
 }
 
-type Tab = 'bookings' | 'trips' | 'presets' | 'passengers' | 'settings';
+type Tab = 'bookings' | 'trips' | 'presets' | 'passengers' | 'payments' | 'settings';
 
 type TripStatusFilterType = 'all' | 'scheduled' | 'completed' | 'cancelled' | 'closed';
 
@@ -111,11 +111,10 @@ function TripFilterToggle({
         <button
           key={filter.id}
           onClick={() => onSelectFilter(filter.id)}
-          className={`px-2 py-0.5 rounded text-[10px] font-mono transition-colors flex-shrink-0 whitespace-nowrap ${
-            currentFilter === filter.id
-              ? 'bg-accent-red/20 text-accent-red font-bold'
-              : 'text-warmwhite/40 hover:text-warmwhite/70'
-          }`}
+          className={`px-2 py-0.5 rounded text-[10px] font-mono transition-colors flex-shrink-0 whitespace-nowrap ${currentFilter === filter.id
+            ? 'bg-accent-red/20 text-accent-red font-bold'
+            : 'text-warmwhite/40 hover:text-warmwhite/70'
+            }`}
         >
           {filter.label}
         </button>
@@ -144,6 +143,8 @@ export function AdminClient({
   const [tripStatusFilter, setTripStatusFilter] = useState<TripStatusFilterType>('all');
   const [detailsUser, setDetailsUser] = useState<UserRecord | null>(null);
   const [tripSearchQuery, setTripSearchQuery] = useState('');
+  const [paymentsFromDate, setPaymentsFromDate] = useState<string>('');
+  const [paymentsToDate, setPaymentsToDate] = useState<string>('');
 
   // Cap per-group render count once trip volume grows — dropdown stays scannable
   // instead of dumping 100+ <option> rows in at once. Search bypasses the cap.
@@ -224,6 +225,52 @@ export function AdminClient({
     () => (activeTrip ? bookings.filter((b) => b.trip_id === activeTrip.id) : []),
     [bookings, activeTrip]
   );
+
+  const paymentsTrips = useMemo(() => {
+    return trips.filter((t) => {
+      if (paymentsFromDate && t.trip_date < paymentsFromDate) return false;
+      if (paymentsToDate && t.trip_date > paymentsToDate) return false;
+      return true;
+    });
+  }, [trips, paymentsFromDate, paymentsToDate]);
+
+  const paymentsTripIds = useMemo(() => new Set(paymentsTrips.map((t) => t.id)), [paymentsTrips]);
+
+  function fareFor(b: Booking, trip?: Trip | null): number {
+    return b.rate_applied ?? trip?.rate ?? globalRate ?? 0;
+  }
+
+  const paymentStats = useMemo(() => {
+    const tripById = new Map(trips.map((t) => [t.id, t]));
+    const relevant = bookings.filter((b) => b.status === 'approved' && paymentsTripIds.has(b.trip_id));
+
+    let paidAmount = 0, pendingAmount = 0, waivedAmount = 0;
+    let paidCount = 0, pendingCount = 0, waivedCount = 0;
+
+    for (const b of relevant) {
+      const amt = fareFor(b, tripById.get(b.trip_id));
+      if (b.payment_status === 'paid') { paidAmount += amt; paidCount++; }
+      else if (b.payment_status === 'waived') { waivedAmount += amt; waivedCount++; }
+      else { pendingAmount += amt; pendingCount++; }
+    }
+
+    const collectionRate = paidCount + pendingCount > 0
+      ? Math.round((paidCount / (paidCount + pendingCount)) * 100)
+      : 0;
+
+    return { paidAmount, pendingAmount, waivedAmount, paidCount, pendingCount, waivedCount, collectionRate, relevant, tripById };
+  }, [bookings, trips, paymentsTripIds, globalRate]);
+
+  const pendingPassengerRows = useMemo(() => {
+    return paymentStats.relevant
+      .filter((b) => b.payment_status === 'pending')
+      .map((b) => {
+        const trip = paymentStats.tripById.get(b.trip_id);
+        const user = users.find((u) => u.id === b.user_id);
+        return { booking: b, trip, user, amount: fareFor(b, trip) };
+      })
+      .sort((a, b) => (a.booking.created_at < b.booking.created_at ? -1 : 1));
+  }, [paymentStats, users]);
 
   const routePresets = useMemo(
     () => routes.filter((r) => r.is_preset),
@@ -404,6 +451,31 @@ export function AdminClient({
       setBookings((prev) =>
         prev.map((b) => (b.id === bookingId ? { ...b, payment_status: target.payment_status } : b))
       );
+    }
+  }
+
+  async function handleMarkTripPaid(tripId: string) {
+    const targetIds = bookings
+      .filter((b) => b.trip_id === tripId && b.status === 'approved' && b.payment_status === 'pending')
+      .map((b) => b.id);
+    if (targetIds.length === 0) return;
+
+    const prevBookings = bookings;
+    setBookings((prev) =>
+      prev.map((b) => (targetIds.includes(b.id) ? { ...b, payment_status: 'paid' } : b))
+    );
+
+    const { error } = await supabase
+      .from('bookings')
+      .update({ payment_status: 'paid' })
+      .in('id', targetIds);
+
+    if (error) {
+      console.error('[admin] mark trip paid failed:', error.message);
+      showNotification(`Failed to mark paid: ${error.message}`);
+      setBookings(prevBookings);
+    } else {
+      showNotification(`${targetIds.length} booking(s) marked paid`);
     }
   }
 
@@ -688,6 +760,7 @@ export function AdminClient({
           { id: 'trips', label: 'Trip Directory' },
           { id: 'presets', label: 'Route Presets' },
           { id: 'passengers', label: 'Passengers' },
+          { id: 'payments', label: 'Payments' },
           { id: 'settings', label: 'Settings' },
         ].map((tab) => {
           const isActive = activeTab === tab.id;
@@ -695,11 +768,10 @@ export function AdminClient({
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as Tab)}
-              className={`px-3.5 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
-                isActive
-                  ? 'bg-accent-red/10 text-accent-red border border-accent-red/30'
-                  : 'text-warmwhite/60 hover:text-warmwhite hover:bg-white/5'
-              }`}
+              className={`px-3.5 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${isActive
+                ? 'bg-accent-red/10 text-accent-red border border-accent-red/30'
+                : 'text-warmwhite/60 hover:text-warmwhite hover:bg-white/5'
+                }`}
             >
               {tab.label}
             </button>
@@ -888,15 +960,15 @@ export function AdminClient({
                           )}
                           {activeTripCategory === 'campus_to_home'
                             ? b.admin_message && (
-                                <p className="text-[11px] text-emerald-400 font-mono max-w-[220px] truncate" title={b.admin_message}>
-                                  Message: {b.admin_message}
-                                </p>
-                              )
+                              <p className="text-[11px] text-emerald-400 font-mono max-w-[220px] truncate" title={b.admin_message}>
+                                Message: {b.admin_message}
+                              </p>
+                            )
                             : b.approved_time && (
-                                <p className="text-[11px] text-emerald-400 font-mono">
-                                  Approved Time: {formatTime12h(b.approved_time)}
-                                </p>
-                              )}
+                              <p className="text-[11px] text-emerald-400 font-mono">
+                                Approved Time: {formatTime12h(b.approved_time)}
+                              </p>
+                            )}
                         </div>
 
                         {/* Status / Actions */}
@@ -926,13 +998,12 @@ export function AdminClient({
                               <button
                                 onClick={() => handleCyclePaymentStatus(b.id)}
                                 title="Click to cycle payment status"
-                                className={`px-3 py-1 rounded-full border text-xs font-mono font-bold uppercase transition-colors ${
-                                  b.payment_status === 'paid'
-                                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                                    : b.payment_status === 'waived'
+                                className={`px-3 py-1 rounded-full border text-xs font-mono font-bold uppercase transition-colors ${b.payment_status === 'paid'
+                                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                                  : b.payment_status === 'waived'
                                     ? 'bg-chrome/10 text-warmwhite/60 border-chrome/20'
                                     : 'bg-signal-amber/10 text-signal-amber border-signal-amber/30'
-                                }`}
+                                  }`}
                               >
                                 {b.payment_status}
                               </button>
@@ -998,76 +1069,77 @@ export function AdminClient({
                 const unpaidApprovedCount = bookings.filter(
                   (b) => b.trip_id === t.id && b.status === 'approved' && b.payment_status === 'pending'
                 ).length;
+                const seatsBookedCount = bookings.filter(
+                  (b) => b.trip_id === t.id && b.status === 'approved'
+                ).length;
                 const canClose = t.status === 'completed' && unpaidApprovedCount === 0;
 
                 return (
-                <div key={t.id} className="bezel-shell">
-                  <div className="bezel-core p-4 flex items-center justify-between gap-4">
-                    <div className="flex flex-col gap-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs text-warmwhite font-bold">
-                          {t.trip_date} · {formatTime12h(t.trip_time)}
-                        </span>
-                        <span className={`text-[10px] font-mono px-2 py-0.5 rounded uppercase ${
-                          t.status === 'scheduled' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-chrome/10 text-warmwhite/50'
-                        }`}>
-                          {t.status}
-                        </span>
+                  <div key={t.id} className="bezel-shell">
+                    <div className="bezel-core p-4 flex items-center justify-between gap-4">
+                      <div className="flex flex-col gap-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs text-warmwhite font-bold">
+                            {t.trip_date} · {formatTime12h(t.trip_time)}
+                          </span>
+                          <span className={`text-[10px] font-mono px-2 py-0.5 rounded uppercase ${t.status === 'scheduled' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-chrome/10 text-warmwhite/50'
+                            }`}>
+                            {t.status}
+                          </span>
+                        </div>
+                        <p className="text-xs text-accent-red font-medium truncate">
+                          {formatDirection(t.direction) || 'No direction'}
+                        </p>
+                        <p className="text-[11px] font-mono text-warmwhite/50">
+                          Seats: {t.seats_total} · Booked: {seatsBookedCount} · Rate: {t.rate ? `Rs. ${t.rate}` : 'Default'}
+                        </p>
                       </div>
-                      <p className="text-xs text-accent-red font-medium truncate">
-                        {formatDirection(t.direction) || 'No direction'}
-                      </p>
-                      <p className="text-[11px] font-mono text-warmwhite/50">
-                        Seats: {t.seats_total} · Rate: {t.rate ? `Rs. ${t.rate}` : 'Default'}
-                      </p>
-                    </div>
 
-                    <div className="flex items-center gap-2">
-                      {t.status === 'scheduled' && t.rate !== null && t.rate !== undefined && (
-                        <button
-                          onClick={() => handleResetTripRate(t.id)}
-                          className="px-2.5 py-1 rounded text-xs bg-chrome/10 text-warmwhite/60 hover:bg-chrome/20"
-                        >
-                          Reset Rate
-                        </button>
-                      )}
-                      {t.status === 'scheduled' && (
-                        <>
+                      <div className="flex items-center gap-2">
+                        {t.status === 'scheduled' && t.rate !== null && t.rate !== undefined && (
                           <button
-                            onClick={() => handleUpdateTripStatus(t.id, 'completed')}
-                            className="px-2.5 py-1 rounded text-xs bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30"
+                            onClick={() => handleResetTripRate(t.id)}
+                            className="px-2.5 py-1 rounded text-xs bg-chrome/10 text-warmwhite/60 hover:bg-chrome/20"
                           >
-                            Complete
+                            Reset Rate
                           </button>
+                        )}
+                        {t.status === 'scheduled' && (
+                          <>
+                            <button
+                              onClick={() => handleUpdateTripStatus(t.id, 'completed')}
+                              className="px-2.5 py-1 rounded text-xs bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30"
+                            >
+                              Complete
+                            </button>
+                            <button
+                              onClick={() => handleUpdateTripStatus(t.id, 'cancelled')}
+                              className="px-2.5 py-1 rounded text-xs bg-rose-500/20 text-rose-400 hover:bg-rose-500/30"
+                            >
+                              Cancel
+                            </button>
+                          </>
+                        )}
+                        {t.status === 'completed' && (
                           <button
-                            onClick={() => handleUpdateTripStatus(t.id, 'cancelled')}
-                            className="px-2.5 py-1 rounded text-xs bg-rose-500/20 text-rose-400 hover:bg-rose-500/30"
-                          >
-                            Cancel
-                          </button>
-                        </>
-                      )}
-                      {t.status === 'completed' && (
-                        <button
-                          onClick={() => canClose && handleUpdateTripStatus(t.id, 'closed')}
-                          disabled={!canClose}
-                          title={
-                            canClose
-                              ? 'Close trip'
-                              : `${unpaidApprovedCount} approved booking(s) still pending payment`
-                          }
-                          className={`px-2.5 py-1 rounded text-xs ${
-                            canClose
+                            onClick={() => canClose && handleUpdateTripStatus(t.id, 'closed')}
+                            disabled={!canClose}
+                            title={
+                              canClose
+                                ? 'Close trip'
+                                : `${unpaidApprovedCount} approved booking(s) still pending payment`
+                            }
+                            className={`px-2.5 py-1 rounded text-xs ${canClose
                               ? 'bg-chrome/20 text-warmwhite hover:bg-chrome/30'
                               : 'bg-chrome/5 text-warmwhite/30 cursor-not-allowed'
-                          }`}
-                        >
-                          Close
-                        </button>
-                      )}
+                              }`}
+                          >
+                            Close
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
                 );
               })
             )}
@@ -1153,9 +1225,8 @@ export function AdminClient({
                         <span className="text-sm font-semibold text-warmwhite">
                           {u.full_name || u.email.split('@')[0]}
                         </span>
-                        <span className={`text-[10px] font-mono px-2 py-0.5 rounded uppercase ${
-                          u.role === 'admin' ? 'bg-accent-red/20 text-accent-red font-bold' : 'bg-chrome/10 text-warmwhite/50'
-                        }`}>
+                        <span className={`text-[10px] font-mono px-2 py-0.5 rounded uppercase ${u.role === 'admin' ? 'bg-accent-red/20 text-accent-red font-bold' : 'bg-chrome/10 text-warmwhite/50'
+                          }`}>
                           {u.role}
                         </span>
                       </div>
@@ -1198,6 +1269,163 @@ export function AdminClient({
                 </div>
               );
             })}
+          </div>
+        </motion.div>
+      )}
+
+      {/* TAB 4B: PAYMENT ANALYSIS */}
+      {activeTab === 'payments' && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25 }}
+          className="flex flex-col gap-4"
+        >
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <h3 className="font-mono text-xs font-semibold tracking-widest text-warmwhite/80 uppercase">
+              Payment Analysis
+            </h3>
+            <div className="flex items-center gap-2 text-xs font-mono">
+              <input
+                type="date"
+                value={paymentsFromDate}
+                onChange={(e) => setPaymentsFromDate(e.target.value)}
+                className="bg-panel border border-chrome/20 rounded px-2 py-1 text-warmwhite/70"
+              />
+              <span className="text-warmwhite/30">to</span>
+              <input
+                type="date"
+                value={paymentsToDate}
+                onChange={(e) => setPaymentsToDate(e.target.value)}
+                className="bg-panel border border-chrome/20 rounded px-2 py-1 text-warmwhite/70"
+              />
+              {(paymentsFromDate || paymentsToDate) && (
+                <button
+                  onClick={() => { setPaymentsFromDate(''); setPaymentsToDate(''); }}
+                  className="px-2 py-1 rounded bg-chrome/10 text-warmwhite/50 hover:bg-chrome/20"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Stat strip */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bezel-shell">
+              <div className="bezel-core p-4 flex flex-col gap-1">
+                <span className="text-[11px] font-mono uppercase tracking-widest text-warmwhite/40">Collected</span>
+                <span className="font-mono text-lg font-bold text-emerald-400">Rs. {paymentStats.paidAmount}</span>
+                <span className="text-[10px] font-mono text-warmwhite/35">{paymentStats.paidCount} bookings</span>
+              </div>
+            </div>
+            <div className="bezel-shell">
+              <div className="bezel-core p-4 flex flex-col gap-1">
+                <span className="text-[11px] font-mono uppercase tracking-widest text-warmwhite/40">Pending</span>
+                <span className="font-mono text-lg font-bold text-signal-amber">Rs. {paymentStats.pendingAmount}</span>
+                <span className="text-[10px] font-mono text-warmwhite/35">{paymentStats.pendingCount} bookings</span>
+              </div>
+            </div>
+            <div className="bezel-shell">
+              <div className="bezel-core p-4 flex flex-col gap-1">
+                <span className="text-[11px] font-mono uppercase tracking-widest text-warmwhite/40">Waived</span>
+                <span className="font-mono text-lg font-bold text-warmwhite/60">Rs. {paymentStats.waivedAmount}</span>
+                <span className="text-[10px] font-mono text-warmwhite/35">{paymentStats.waivedCount} bookings</span>
+              </div>
+            </div>
+            <div className="bezel-shell">
+              <div className="bezel-core p-4 flex flex-col gap-1">
+                <span className="text-[10px] font-mono uppercase tracking-widest text-warmwhite/40">Collection Rate</span>
+                <span className="font-mono text-lg font-bold text-chrome">{paymentStats.collectionRate}%</span>
+                <span className="text-[10px] font-mono text-warmwhite/35">paid / (paid+pending)</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Per-trip breakdown */}
+          <h4 className="font-mono text-xs font-semibold tracking-widest text-warmwhite/60 uppercase mt-2">
+            Per-Trip Breakdown
+          </h4>
+          <div className="flex flex-col gap-3">
+            {paymentsTrips.length === 0 ? (
+              <div className="bezel-shell">
+                <div className="bezel-core p-8 text-center text-xs font-mono text-warmwhite/40">
+                  No trips in selected range
+                </div>
+              </div>
+            ) : (
+              sortTripsCustom(paymentsTrips).map((t) => {
+                const tripBookings = paymentStats.relevant.filter((b) => b.trip_id === t.id);
+                if (tripBookings.length === 0) return null;
+                const paid = tripBookings.filter((b) => b.payment_status === 'paid');
+                const pending = tripBookings.filter((b) => b.payment_status === 'pending');
+                const waived = tripBookings.filter((b) => b.payment_status === 'waived');
+                const pendingAmt = pending.reduce((sum, b) => sum + fareFor(b, t), 0);
+
+                return (
+                  <div key={t.id} className="bezel-shell">
+                    <div className="bezel-core p-4 flex items-center justify-between gap-4">
+                      <div className="flex flex-col gap-1 min-w-0">
+                        <span className="font-mono text-xs text-warmwhite font-bold">
+                          {t.trip_date} · {formatTime12h(t.trip_time)}
+                        </span>
+                        <p className="text-xs text-accent-red font-medium truncate">
+                          {formatDirection(t.direction) || 'No direction'}
+                        </p>
+                        <p className="text-[11px] font-mono text-warmwhite/50">
+                          Paid: {paid.length} · Pending: {pending.length} · Waived: {waived.length}
+                          {pendingAmt > 0 && <> · Owed: Rs. {pendingAmt}</>}
+                        </p>
+                      </div>
+                      {pending.length > 0 && (
+                        <button
+                          onClick={() => handleMarkTripPaid(t.id)}
+                          className="flex-shrink-0 px-2.5 py-1 rounded text-xs bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30"
+                        >
+                          Mark All Paid
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Pending passengers */}
+          <h4 className="font-mono text-xs font-semibold tracking-widest text-warmwhite/60 uppercase mt-2">
+            Pending Payments ({pendingPassengerRows.length})
+          </h4>
+          <div className="flex flex-col gap-3">
+            {pendingPassengerRows.length === 0 ? (
+              <div className="bezel-shell">
+                <div className="bezel-core p-6 text-center text-xs font-mono text-warmwhite/40">
+                  Nothing outstanding
+                </div>
+              </div>
+            ) : (
+              pendingPassengerRows.map(({ booking, trip, user, amount }) => (
+                <div key={booking.id} className="bezel-shell">
+                  <div className="bezel-core p-4 flex items-center justify-between gap-4">
+                    <div className="flex flex-col gap-1 min-w-0">
+                      <span className="text-sm font-semibold text-warmwhite truncate">
+                        {user?.full_name || user?.email?.split('@')[0] || 'Unknown'}
+                      </span>
+                      <p className="text-[11px] font-mono text-warmwhite/50">
+                        {trip ? `${trip.trip_date} · ${formatDirection(trip.direction)}` : 'Trip removed'} · Rs. {amount}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleCyclePaymentStatus(booking.id)}
+                      title="Click to cycle payment status"
+                      className="flex-shrink-0 px-2.5 py-1 rounded text-xs bg-signal-amber/20 text-signal-amber hover:bg-signal-amber/30"
+                    >
+                      pending
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </motion.div>
       )}
