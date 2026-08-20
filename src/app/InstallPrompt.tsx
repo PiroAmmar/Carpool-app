@@ -8,7 +8,7 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 }
 
-const DISMISS_KEY = "carpool-hub-install-dismissed-at";
+const DISMISS_KEY = "ammar-fast-carpool-install-dismissed-at";
 const DISMISS_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000; // re-ask after a week
 
 function isIOSSafari() {
@@ -80,7 +80,7 @@ export function InstallPrompt() {
           {showIOSInstructions ? (
             <>
               <div className="flex-1">
-                <p className="text-sm font-medium text-warmwhite">Install Carpool Hub</p>
+                <p className="text-sm font-medium text-warmwhite">Install Ammar FAST Carpool</p>
                 <p className="text-xs text-chrome/70">
                   Tap <span className="font-semibold text-chrome">Share</span> in Safari, then{" "}
                   <span className="font-semibold text-chrome">Add to Home Screen</span>
@@ -96,7 +96,7 @@ export function InstallPrompt() {
           ) : (
             <>
               <div className="flex-1">
-                <p className="text-sm font-medium text-warmwhite">Install Carpool Hub</p>
+                <p className="text-sm font-medium text-warmwhite">Install Ammar FAST Carpool</p>
                 <p className="text-xs text-chrome/70">Add to your home screen for quick access</p>
               </div>
               <button

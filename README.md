@@ -1,6 +1,6 @@
 <div align="center">
-  <img src="./public/favicon.svg" alt="Carpool Hub Logo" width="130" />
-  <h1>🚗 Carpool Hub (Ammar FAST Carpool)</h1>
+  <img src="./public/favicon.svg" alt="Ammar FAST Carpool Logo" width="130" />
+  <h1>🚗 Ammar FAST Carpool</h1>
   <p><strong>Real-time closed-group carpooling & fleet coordination Progressive Web Application for FAST NUCES</strong></p>
 
   <p>
@@ -16,7 +16,7 @@
 
 <br />
 
-**Carpool Hub** is a real-time, closed-group carpooling and fleet coordination Progressive Web Application (PWA) built specifically for a dedicated university commute group (1 driver/admin and 10–15 regular passengers) traveling to and from **FAST NUCES**. 
+**Ammar FAST Carpool** is a real-time, closed-group carpooling and fleet coordination Progressive Web Application (PWA) built specifically for a dedicated university commute group (1 driver/admin and 10–15 regular passengers) traveling to and from **FAST NUCES**. 
 
 It replaces chaotic, high-friction WhatsApp message threads with a centralized telemetry dashboard featuring an interactive real-time car seat visual, bidirectional trip booking workflows, passenger custom rate management, payment tracking, and a dual-channel (Web Push + SMTP Email) notification pipeline.
 
@@ -522,11 +522,11 @@ Triggered daily by Vercel Cron. Compiles all pending seat requests and emails a 
 
 ## 🎨 Design System & Philosophy
 
-Carpool Hub is built using an **Instrument Cluster** design paradigm — engineered to feel like a high-precision physical vehicle dashboard rather than a generic dark-mode website:
+Ammar FAST Carpool is built using an **Instrument Cluster** design paradigm — engineered to feel like a high-precision physical vehicle dashboard rather than a generic dark-mode website:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  [CARPOOL HUB]                  [HUD: Rs. 150] [3/4 SEATS]  │  ← Top Telemetry Bar
+│  [AMMAR FAST CARPOOL]           [HUD: Rs. 150] [3/4 SEATS]  │  ← Top Telemetry Bar
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
 │                    ┌──────────────────┐                     │

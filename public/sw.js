@@ -1,4 +1,4 @@
-const CACHE_NAME = "carpool-hub-v3";
+const CACHE_NAME = "ammar-fast-carpool-v3";
 const STATIC_ASSETS = [
   "/manifest.json",
   "/icon-192.png",
@@ -75,10 +75,10 @@ self.addEventListener("push", (event) => {
   try {
     payload = event.data.json();
   } catch {
-    payload = { title: "Carpool Hub", body: event.data.text() };
+    payload = { title: "Ammar FAST Carpool", body: event.data.text() };
   }
 
-  const { title = "Carpool Hub", body = "", url = "/dashboard", tag } = payload;
+  const { title = "Ammar FAST Carpool", body = "", url = "/dashboard", tag } = payload;
 
   event.waitUntil(
     self.registration.showNotification(title, {

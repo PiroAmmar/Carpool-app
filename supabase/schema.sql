@@ -1,4 +1,4 @@
--- Carpool Hub — database schema
+-- Ammar FAST Carpool — database schema
 -- Run this in the Supabase SQL Editor (Project → SQL Editor → New Query)
 -- after Phase 0 is complete.
 
