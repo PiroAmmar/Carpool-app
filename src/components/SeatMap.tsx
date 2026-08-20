@@ -102,9 +102,9 @@ function Seat({ num, x, y, w, h, status }: SeatProps) {
    components, in the same 2000×2000 coordinate space as the traced
    outline — so these line up with the car's real seat wells exactly. */
 const SEATS = [
-  { num: 1, x: 726,  y: 820,  w: 985 - 726,  h: 1075 - 820  }, // front-left
-  { num: 2, x: 1013, y: 820,  w: 1269 - 1013, h: 1075 - 820  }, // front-right
-  { num: 3, x: 729,  y: 1094, w: 983 - 729,  h: 1348 - 1094 }, // back-left
+  { num: 1, x: 726, y: 820, w: 985 - 726, h: 1075 - 820 }, // front-left
+  { num: 2, x: 1013, y: 820, w: 1269 - 1013, h: 1075 - 820 }, // front-right
+  { num: 3, x: 729, y: 1094, w: 983 - 729, h: 1348 - 1094 }, // back-left
   { num: 4, x: 1016, y: 1094, w: 1270 - 1016, h: 1348 - 1094 }, // back-right
 ];
 
@@ -129,7 +129,21 @@ export function SeatMap({
   }
 
   return (
-    <div className="relative w-[140px] select-none" role="region" aria-label="Vehicle seating arrangement">
+    <div className="relative w-[140px] select-none flex flex-col items-center" role="region" aria-label="Vehicle seating arrangement">
+      <div className="text-[10px] font-mono text-center mb-2 leading-tight flex flex-col items-center gap-0.5">
+        <div>
+          <span style={{ color: '#DF1B12' }} className="font-bold">
+            Rally Red
+          </span>{' '}
+          <span className="text-warmwhite/75 font-medium">
+            Civic X
+          </span>
+        </div>
+        <span className="text-warmwhite/60 tracking-wider">
+          BJK-478
+        </span>
+      </div>
+
       {/* Tight-cropped viewBox around the traced artwork's actual bounds
           (x:471-1528, y:94-1905 in the 2000×2000 reference space) — avoids
           rendering the surrounding whitespace from the source canvas. */}

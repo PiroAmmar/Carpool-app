@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { sendEmail, ADMIN_EMAIL } from '@/lib/email/mailer';
 import { newBookingEmail } from '@/lib/email/templates';
 import { formatNotificationDate, formatNotificationTime } from '@/lib/formatNotification';
+import { notifyUser } from '@/lib/notify/notifyAll';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 export async function POST(req: Request) {
   try {
@@ -30,6 +32,31 @@ export async function POST(req: Request) {
       tripTime: formattedTime,
     });
 
+    // Push to admin if they have an active subscription (installed PWA + opted in),
+    // falling back to email otherwise — same pattern as passenger notifications.
+    const supabase = createAdminClient();
+    const { data: admin } = await supabase
+      .from('users')
+      .select('id, email')
+      .eq('role', 'admin')
+      .limit(1)
+      .maybeSingle();
+
+    if (admin?.id) {
+      const result = await notifyUser({
+        userId: admin.id,
+        userEmail: admin.email || ADMIN_EMAIL,
+        title: 'New seat request',
+        body: `${passengerName} — seat ${seatNumber} — ${locationLine}`,
+        url: '/admin',
+        tag: 'new-booking',
+        emailSubject: subject,
+        emailHtml: html,
+      });
+      return NextResponse.json({ ok: true, ...result });
+    }
+
+    // No admin row found — fall back to the static admin inbox.
     const { error } = await sendEmail({ to: ADMIN_EMAIL, subject, html });
 
     if (error) {
@@ -44,3 +71,4 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
+
