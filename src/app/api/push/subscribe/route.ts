@@ -1,13 +1,9 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { getAuthenticatedUser } from '@/lib/supabase/serverAuth';
 
 export async function POST(req: Request) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-  }
+  const { user, supabase, unauthorizedResponse } = await getAuthenticatedUser();
+  if (!user) return unauthorizedResponse;
 
   const body = await req.json();
   const { endpoint, keys } = body ?? {};
@@ -35,12 +31,8 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-  }
+  const { user, supabase, unauthorizedResponse } = await getAuthenticatedUser();
+  if (!user) return unauthorizedResponse;
 
   const body = await req.json();
   const { endpoint } = body ?? {};

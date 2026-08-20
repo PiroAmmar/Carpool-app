@@ -252,13 +252,21 @@ export function AdminClient({
         'postgres_changes',
         { event: '*', schema: 'public', table: 'bookings' },
         (payload) => {
-          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+          if (payload.eventType === 'UPDATE') {
             const updatedB = payload.new as Booking;
             setBookings((prev) => {
+              const exists = prev.some((b) => b.id === updatedB.id);
+              // Update in place — never reorder, or rows jump under the admin's cursor mid-edit.
+              if (exists) return prev.map((b) => (b.id === updatedB.id ? updatedB : b));
+              return [updatedB, ...prev];
+            });
+          } else if (payload.eventType === 'INSERT') {
+            const newB = payload.new as Booking;
+            setBookings((prev) => {
               const filtered = prev.filter(
-                (b) => b.id !== updatedB.id && !(b.user_id?.toLowerCase() === updatedB.user_id?.toLowerCase() && b.trip_id === updatedB.trip_id)
+                (b) => b.id !== newB.id && !(b.user_id?.toLowerCase() === newB.user_id?.toLowerCase() && b.trip_id === newB.trip_id)
               );
-              return [updatedB, ...filtered];
+              return [newB, ...filtered];
             });
           } else if (payload.eventType === 'DELETE') {
             const deletedId = (payload.old as Partial<Booking>).id;
@@ -338,22 +346,32 @@ export function AdminClient({
     }
   }
 
-  // Fire-and-forget — approval already committed, email failure shouldn't block the UI.
-  function notifyPassengerOfApproval(booking: Booking, submission: ApprovalSubmission) {
+  function getBookingRecipient(booking: Booking) {
     const passenger = users.find((u) => u.id === booking.user_id);
     const trip = trips.find((t) => t.id === booking.trip_id);
-    if (!passenger?.email || !trip) return;
+    if (!passenger?.email || !trip) return null;
+    return {
+      passenger,
+      trip,
+      passengerName: passenger.full_name || passenger.email.split('@')[0],
+    };
+  }
+
+  // Fire-and-forget — approval already committed, email failure shouldn't block the UI.
+  function notifyPassengerOfApproval(booking: Booking, submission: ApprovalSubmission) {
+    const ctx = getBookingRecipient(booking);
+    if (!ctx) return;
 
     fetch('/api/notify/approval', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        userId: passenger.id,
-        passengerName: passenger.full_name || passenger.email.split('@')[0],
-        passengerEmail: passenger.email,
+        userId: ctx.passenger.id,
+        passengerName: ctx.passengerName,
+        passengerEmail: ctx.passenger.email,
         approvedTime: submission.approved_time ?? null,
         adminMessage: submission.admin_message ?? null,
-        tripDate: trip.trip_date,
+        tripDate: ctx.trip.trip_date,
         pickupLocation: booking.pickup_location,
         dropoffLocation: booking.dropoff_location,
       }),
@@ -362,18 +380,17 @@ export function AdminClient({
 
   // Fire-and-forget — rejection already committed, email failure shouldn't block the UI.
   function notifyPassengerOfRejection(booking: Booking) {
-    const passenger = users.find((u) => u.id === booking.user_id);
-    const trip = trips.find((t) => t.id === booking.trip_id);
-    if (!passenger?.email || !trip) return;
+    const ctx = getBookingRecipient(booking);
+    if (!ctx) return;
 
     fetch('/api/notify/rejection', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        userId: passenger.id,
-        passengerName: passenger.full_name || passenger.email.split('@')[0],
-        passengerEmail: passenger.email,
-        tripDate: trip.trip_date,
+        userId: ctx.passenger.id,
+        passengerName: ctx.passengerName,
+        passengerEmail: ctx.passenger.email,
+        tripDate: ctx.trip.trip_date,
         seatNumber: booking.seat_number,
       }),
     }).catch((err) => console.error('[notify] rejection notify failed:', err));
@@ -754,35 +771,25 @@ export function AdminClient({
                     {filteredTripsForDropdown.length === 0 ? (
                       <option value="">No trips match filter ({tripStatusFilter})</option>
                     ) : (
-                      <>
-                        {scheduledTrips.length > 0 && (tripStatusFilter === 'all' || tripStatusFilter === 'scheduled') && (
-                          <optgroup label={`— SCHEDULED TRIPS —${overflow(scheduledTrips) ? ` (showing ${TRIP_GROUP_CAP} of ${scheduledTrips.length}, search to see more)` : ''}`}>
-                            {cap(scheduledTrips).map((t) => (
+                      ([
+                        { key: 'scheduled' as const, label: 'SCHEDULED TRIPS', list: scheduledTrips, prefix: '' },
+                        { key: 'completed' as const, label: 'COMPLETED TRIPS', list: completedTrips, prefix: '[COMPLETED] ' },
+                        { key: 'cancelled' as const, label: 'CANCELLED TRIPS', list: cancelledTrips, prefix: '[CANCELLED] ' },
+                      ] as const).map(({ key, label, list, prefix }) => {
+                        if (list.length === 0 || (tripStatusFilter !== 'all' && tripStatusFilter !== key)) return null;
+                        return (
+                          <optgroup
+                            key={key}
+                            label={`— ${label} —${overflow(list) ? ` (showing ${TRIP_GROUP_CAP} of ${list.length}, search to see more)` : ''}`}
+                          >
+                            {cap(list).map((t) => (
                               <option key={t.id} value={t.id}>
-                                {t.trip_date} · {formatTime12h(t.trip_time)} ({formatDirection(t.direction) || 'No direction'})
+                                {prefix}{t.trip_date} · {formatTime12h(t.trip_time)} ({formatDirection(t.direction) || 'No direction'})
                               </option>
                             ))}
                           </optgroup>
-                        )}
-                        {completedTrips.length > 0 && (tripStatusFilter === 'all' || tripStatusFilter === 'completed') && (
-                          <optgroup label={`— COMPLETED TRIPS —${overflow(completedTrips) ? ` (showing ${TRIP_GROUP_CAP} of ${completedTrips.length}, search to see more)` : ''}`}>
-                            {cap(completedTrips).map((t) => (
-                              <option key={t.id} value={t.id}>
-                                [COMPLETED] {t.trip_date} · {formatTime12h(t.trip_time)} ({formatDirection(t.direction) || 'No direction'})
-                              </option>
-                            ))}
-                          </optgroup>
-                        )}
-                        {cancelledTrips.length > 0 && (tripStatusFilter === 'all' || tripStatusFilter === 'cancelled') && (
-                          <optgroup label={`— CANCELLED TRIPS —${overflow(cancelledTrips) ? ` (showing ${TRIP_GROUP_CAP} of ${cancelledTrips.length}, search to see more)` : ''}`}>
-                            {cap(cancelledTrips).map((t) => (
-                              <option key={t.id} value={t.id}>
-                                [CANCELLED] {t.trip_date} · {formatTime12h(t.trip_time)} ({formatDirection(t.direction) || 'No direction'})
-                              </option>
-                            ))}
-                          </optgroup>
-                        )}
-                      </>
+                        );
+                      })
                     )}
                   </select>
                 </div>

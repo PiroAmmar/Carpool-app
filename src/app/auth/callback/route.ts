@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { isAdminEmail } from "@/lib/admin";
 
 // This is the URL Supabase redirects to after Google finishes the OAuth
 // handshake. It exchanges the auth code for a session, THEN checks the
@@ -28,14 +29,7 @@ export async function GET(request: Request) {
   const user = data.session.user;
   const email = (user.email ?? "").toLowerCase();
   const allowedDomain = process.env.ALLOWED_EMAIL_DOMAIN ?? "nu.edu.pk";
-  
-  const envAdmin = (process.env.ADMIN_EMAIL ?? "").toLowerCase().trim();
-  const ADMIN_EMAILS = [
-    "piroammar388@gmail.com",
-    "ammarcarpool@gmail.com",
-    ...(envAdmin ? envAdmin.split(",").map((e) => e.trim()) : []),
-  ];
-  const isAdmin = ADMIN_EMAILS.includes(email);
+  const isAdmin = isAdminEmail(email);
 
   if (!isAdmin && !email.endsWith(`@${allowedDomain}`)) {
     // Reject: sign the user back out so no session persists, then bounce

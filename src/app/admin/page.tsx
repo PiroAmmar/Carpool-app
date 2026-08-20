@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { HudBar } from '@/components/HudBar';
 import { Sidebar } from '@/components/Sidebar';
 import { AdminClient } from './AdminClient';
+import { isAdminEmail } from '@/lib/admin';
 import type { Trip, Booking, Route } from '@/types';
 
 interface UserRecord {
@@ -22,14 +23,7 @@ export default async function AdminPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  const envAdmin = (process.env.ADMIN_EMAIL ?? '').toLowerCase().trim();
-  const ADMIN_EMAILS = [
-    'piroammar388@gmail.com',
-    'ammarcarpool@gmail.com',
-    ...(envAdmin ? envAdmin.split(',').map((e) => e.trim()) : []),
-  ];
-  const userEmail = (user.email ?? '').toLowerCase();
-  const isAdminEmail = ADMIN_EMAILS.includes(userEmail);
+  const isAdmin = isAdminEmail(user.email);
 
   /* ── Parallel Data Fetching for Admin Dashboard ──────────────── */
   const [
@@ -74,8 +68,8 @@ export default async function AdminPage() {
       .maybeSingle(),
   ]);
 
-  const isAdmin = isAdminEmail || userProfileRes.data?.role === 'admin';
-  if (!isAdmin) {
+  const isAuthorizedAdmin = isAdmin || userProfileRes.data?.role === 'admin';
+  if (!isAuthorizedAdmin) {
     redirect('/dashboard');
   }
 

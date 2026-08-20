@@ -12,6 +12,7 @@ import { Sidebar } from '@/components/Sidebar';
 import { HudBar } from '@/components/HudBar';
 import { LocationBadge } from '@/components/LocationBadge';
 import { categoryOf } from '@/lib/tripCategory';
+import { saveUserWhatsApp } from '@/lib/userProfile';
 import type { Trip, Booking, Route } from '@/types';
 import type { BookingSubmission } from '@/types';
 
@@ -350,6 +351,18 @@ export function DashboardClient({
     setSelectedSeat(null);
     setBookingError(null);
 
+    const onBookingSuccess = (confirmedBooking: Booking) => {
+      setBookings((prev) =>
+        prev.map((b) => (b.id === optimisticId ? confirmedBooking : b))
+      );
+      notifyAdminOfBooking(seatNumber, submission);
+    };
+
+    const onBookingFailure = (errorMessage: string) => {
+      setBookings((prev) => prev.filter((b) => b.id !== optimisticId));
+      setBookingError(errorMessage);
+    };
+
     // If rebooking over a rejected booking, call dedicated API route
     if (myBooking && myBooking.status === 'rejected') {
       try {
@@ -367,22 +380,14 @@ export function DashboardClient({
         });
 
         const json = await res.json();
-        if (!res.ok) {
-          setBookings((prev) => prev.filter((b) => b.id !== optimisticId));
-          setBookingError(json.error || 'Failed to re-book seat.');
-          return;
-        }
-
-        if (json.booking) {
-          setBookings((prev) =>
-            prev.map((b) => (b.id === optimisticId ? (json.booking as Booking) : b))
-          );
-          notifyAdminOfBooking(seatNumber, submission);
+        if (!res.ok || !json.booking) {
+          onBookingFailure(json.error || 'Failed to re-book seat.');
+        } else {
+          onBookingSuccess(json.booking as Booking);
         }
       } catch (err: unknown) {
-        setBookings((prev) => prev.filter((b) => b.id !== optimisticId));
         const msg = err instanceof Error ? err.message : 'Network error while re-booking.';
-        setBookingError(msg);
+        onBookingFailure(msg);
       }
       return;
     }
@@ -406,22 +411,17 @@ export function DashboardClient({
       const json = await res.json();
 
       if (!res.ok || !json.success) {
-        setBookings((prev) => prev.filter((b) => b.id !== optimisticId));
-        if (json.code === '23505') {
-          setBookingError(`Seat ${seatNumber} was just taken. Please choose another seat.`);
-        } else {
-          setBookingError(json.error ?? 'Failed to book seat.');
-        }
+        const errorMsg =
+          json.code === '23505'
+            ? `Seat ${seatNumber} was just taken. Please choose another seat.`
+            : (json.error ?? 'Failed to book seat.');
+        onBookingFailure(errorMsg);
       } else {
-        setBookings((prev) =>
-          prev.map((b) => (b.id === optimisticId ? (json.booking as Booking) : b))
-        );
-        notifyAdminOfBooking(seatNumber, submission);
+        onBookingSuccess(json.booking as Booking);
       }
     } catch (err) {
-      setBookings((prev) => prev.filter((b) => b.id !== optimisticId));
       const msg = err instanceof Error ? err.message : 'Network error while booking.';
-      setBookingError(msg);
+      onBookingFailure(msg);
     }
   }
 
@@ -446,33 +446,10 @@ export function DashboardClient({
 
   async function handleSaveWhatsApp(newNum: string) {
     if (!currentUserId) return;
-
-    // Check if number is already connected to another user
-    const { data: conflict, error: queryErr } = await supabase
-      .from('users')
-      .select('id')
-      .eq('whatsapp', newNum)
-      .neq('id', currentUserId)
-      .maybeSingle();
-
-    if (queryErr) {
-      console.error('[dashboard] error checking duplicate whatsapp:', queryErr.message);
+    const result = await saveUserWhatsApp(supabase, currentUserId, newNum);
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to update WhatsApp number');
     }
-
-    if (conflict) {
-      throw new Error('This WhatsApp number is already connected to a different user.');
-    }
-
-    const { error } = await supabase
-      .from('users')
-      .update({ whatsapp: newNum, phone: newNum })
-      .eq('id', currentUserId);
-
-    if (error) {
-      console.error('[dashboard] whatsapp update failed:', error.message);
-      throw new Error(error.message);
-    }
-
     setWhatsAppNumber(newNum);
     setIsWhatsAppModalOpen(false);
   }

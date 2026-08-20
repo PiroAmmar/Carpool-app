@@ -8,6 +8,7 @@ import { WhatsAppModal } from '@/components/WhatsAppModal';
 import { PushToggle } from '@/app/PushToggle';
 import type { Trip, Booking } from '@/types';
 import { categoryOf, CATEGORY_LABEL, type TripCategory } from '@/lib/tripCategory';
+import { saveUserWhatsApp } from '@/lib/userProfile';
 
 function HomeIcon({ className = 'w-3.5 h-3.5' }: { className?: string }) {
   return (
@@ -257,36 +258,13 @@ export function Sidebar({
 
   async function handleSaveWhatsApp(newNum: string) {
     if (!currentUserId) return;
-
-    // Check if number is already connected to another user
-    const { data: conflict, error: queryErr } = await supabase
-      .from('users')
-      .select('id')
-      .eq('whatsapp', newNum)
-      .neq('id', currentUserId)
-      .maybeSingle();
-
-    if (queryErr) {
-      console.error('[sidebar] error checking duplicate whatsapp:', queryErr.message);
+    const result = await saveUserWhatsApp(supabase, currentUserId, newNum);
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to update WhatsApp number');
     }
-
-    if (conflict) {
-      throw new Error('This WhatsApp number is already connected to a different user.');
-    }
-
-    const { error } = await supabase
-      .from('users')
-      .update({ whatsapp: newNum, phone: newNum })
-      .eq('id', currentUserId);
-
-    if (error) {
-      console.error('[sidebar] whatsapp update failed:', error.message);
-      throw new Error(error.message);
-    } else {
-      setWhatsappNum(newNum);
-      onUpdateWhatsApp?.(newNum);
-      setIsWhatsAppModalOpen(false);
-    }
+    setWhatsappNum(newNum);
+    onUpdateWhatsApp?.(newNum);
+    setIsWhatsAppModalOpen(false);
   }
 
   async function handleLogout() {

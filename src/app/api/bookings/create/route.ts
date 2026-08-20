@@ -1,5 +1,7 @@
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getAuthenticatedUser } from "@/lib/supabase/serverAuth";
+import { resolveBookingRate } from "@/lib/rates";
+import { isValidBookingPayload } from "@/lib/bookings/validation";
 import { NextResponse } from "next/server";
 
 /**
@@ -13,33 +15,23 @@ import { NextResponse } from "next/server";
  */
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient();
-    const { data: authData, error: authError } = await supabase.auth.getUser();
-
-    if (authError || !authData.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { user, unauthorizedResponse } = await getAuthenticatedUser();
+    if (!user) return unauthorizedResponse;
 
     const body = await request.json();
     const { tripId, seatNumber, pickupLocation, dropoffLocation, freeByTime } = body;
 
-    const hasLocation = Boolean(pickupLocation) || Boolean(dropoffLocation && freeByTime);
-    if (!tripId || !seatNumber || !hasLocation) {
+    if (!isValidBookingPayload({ tripId, seatNumber, pickupLocation, dropoffLocation, freeByTime })) {
       return NextResponse.json({ error: "Missing required booking details" }, { status: 400 });
     }
 
-    const userId = authData.user.id;
+    const userId = user.id;
     const client = createAdminClient();
 
     // Snapshot the rate at booking time: trip override > passenger custom rate > global rate.
     // Uses admin client so we can safely read users.custom_rate server-side
     // without ever exposing it to the passenger's browser session.
-    const [{ data: tripRow }, { data: userRow }, { data: settingsRow }] = await Promise.all([
-      client.from("trips").select("rate").eq("id", tripId).maybeSingle(),
-      client.from("users").select("custom_rate").eq("id", userId).maybeSingle(),
-      client.from("settings").select("rate").eq("id", 1).maybeSingle(),
-    ]);
-    const rateApplied = userRow?.custom_rate ?? tripRow?.rate ?? settingsRow?.rate ?? null;
+    const rateApplied = await resolveBookingRate(client, tripId, userId);
 
     const { data: newBooking, error: insertErr } = await client
       .from("bookings")

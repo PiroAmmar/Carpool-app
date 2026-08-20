@@ -71,11 +71,11 @@ export function InstallPrompt() {
     <AnimatePresence>
       {visible && (
         <motion.div
-          initial={{ opacity: 0, y: 24 }}
+          initial={{ opacity: 0, y: -24 }}
           animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 24 }}
+          exit={{ opacity: 0, y: -24 }}
           transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-          className="fixed bottom-4 left-4 right-4 z-50 mx-auto flex max-w-sm items-center gap-3 rounded-lg border border-chrome/20 bg-panel px-4 py-3 shadow-lg sm:left-auto sm:right-4"
+          className="fixed top-4 left-4 right-4 z-50 mx-auto flex max-w-sm items-center gap-3 rounded-lg border border-chrome/20 bg-panel px-4 py-3 shadow-lg sm:left-auto sm:right-4"
         >
           {showIOSInstructions ? (
             <>
