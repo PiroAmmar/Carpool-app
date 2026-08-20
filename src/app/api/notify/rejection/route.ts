@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { bookingRejectedEmail } from '@/lib/email/templates';
 import { notifyUser } from '@/lib/notify/notifyAll';
+import { formatNotificationDate } from '@/lib/formatNotification';
 
 export async function POST(req: Request) {
   try {
@@ -11,9 +12,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
+    const formattedDate = formatNotificationDate(tripDate);
+
     const { subject, html } = bookingRejectedEmail({
       passengerName,
-      tripDate,
+      tripDate: formattedDate,
       seatNumber: seatNumber || 1,
     });
 
@@ -21,7 +24,7 @@ export async function POST(req: Request) {
       userId,
       userEmail: passengerEmail,
       title: 'Request declined',
-      body: `Seat ${seatNumber || 1} for ${tripDate} couldn't be confirmed`,
+      body: `Seat ${seatNumber || 1} for ${formattedDate} couldn't be confirmed`,
       url: '/dashboard',
       tag: 'booking-rejected',
       emailSubject: subject,

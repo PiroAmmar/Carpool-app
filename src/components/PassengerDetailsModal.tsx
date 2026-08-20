@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { BaseModal } from './BaseModal';
 import { LocationBadge } from './LocationBadge';
 import { categoryOf } from '@/lib/tripCategory';
@@ -12,7 +13,9 @@ interface PassengerDetailsModalProps {
   trips: Trip[];
   routes: Route[];
   globalRate: number | null;
+  customRate: number | null;
   onClose: () => void;
+  onSaveCustomRate: (rate: number | null) => Promise<void> | void;
 }
 
 function formatDirection(dir?: string | null): string {
@@ -38,7 +41,9 @@ export function PassengerDetailsModal({
   trips,
   routes,
   globalRate,
+  customRate,
   onClose,
+  onSaveCustomRate,
 }: PassengerDetailsModalProps) {
   const approved = bookings.filter((b) => b.status === 'approved');
 
@@ -46,13 +51,42 @@ export function PassengerDetailsModal({
   const waived = approved.filter((b) => b.payment_status === 'waived');
   const pending = approved.filter((b) => b.payment_status === 'pending');
 
-  const rateFor = (tripId: string) => {
-    const trip = trips.find((t) => t.id === tripId);
+  // Historical totals read the rate frozen on the booking at creation
+  // time — never recomputed live, so editing custom_rate later can't
+  // rewrite a passenger's past paid/waived/pending amounts.
+  const rateFor = (b: Booking) => {
+    if (b.rate_applied !== null && b.rate_applied !== undefined) return b.rate_applied;
+    const trip = trips.find((t) => t.id === b.trip_id);
     return trip?.rate ?? globalRate ?? 0;
   };
 
   const sumRate = (list: Booking[]) =>
-    list.reduce((sum, b) => sum + rateFor(b.trip_id), 0);
+    list.reduce((sum, b) => sum + rateFor(b), 0);
+
+  // Normalize: column may not exist pre-migration, treat undefined same as null
+  const safeCustomRate = customRate ?? null;
+  const [rateInput, setRateInput] = useState(safeCustomRate !== null ? String(safeCustomRate) : '');
+  const [savingRate, setSavingRate] = useState(false);
+  const [justSaved, setJustSaved] = useState(false);
+
+  const handleSaveRate = async () => {
+    if (typeof onSaveCustomRate !== 'function') {
+      console.warn('[PassengerDetailsModal] onSaveCustomRate is not a function');
+      return;
+    }
+    setSavingRate(true);
+    try {
+      const trimmed = rateInput.trim();
+      const parsed = trimmed === '' ? null : Number(trimmed);
+      await onSaveCustomRate(parsed !== null && !Number.isNaN(parsed) ? parsed : null);
+      setJustSaved(true);
+      setTimeout(() => setJustSaved(false), 2000);
+    } catch (err) {
+      console.error('[PassengerDetailsModal] Error saving custom rate:', err);
+    } finally {
+      setSavingRate(false);
+    }
+  };
 
   const paidAmount = sumRate(paid);
   const waivedAmount = sumRate(waived);
@@ -74,6 +108,68 @@ export function PassengerDetailsModal({
       maxWidth="max-w-md"
       ariaLabel="Passenger Details"
     >
+      {/* Custom rate override — clean & minimal design system pattern */}
+      <div className="mb-5">
+        <div className="flex items-center justify-between mb-1.5">
+          <label className="font-mono text-[10px] tracking-widest uppercase text-warmwhite/50 font-medium">
+            Custom Fare Override
+          </label>
+          {safeCustomRate !== null && (
+            <span className="font-mono text-[10px] text-amber-400 font-semibold">
+              Active: Rs. {safeCustomRate}
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* Input container with integrated Rs. prefix (flex sibling, zero overlap) */}
+          <div className="flex-1 flex items-center rounded-lg border border-white/10 bg-asphalt focus-within:border-white/25 transition-colors duration-160">
+            <span className="pl-3.5 pr-2 font-mono text-xs font-semibold text-warmwhite/40 select-none">
+              Rs.
+            </span>
+            <input
+              type="number"
+              inputMode="decimal"
+              value={rateInput}
+              onChange={(e) => setRateInput(e.target.value)}
+              placeholder={globalRate !== null ? `${globalRate} (default)` : 'default'}
+              className="w-full bg-transparent py-2.5 pr-3 font-mono text-xs text-warmwhite placeholder:text-warmwhite/25 outline-none"
+            />
+          </div>
+
+          <button
+            onClick={handleSaveRate}
+            disabled={savingRate}
+            className={`flex-shrink-0 rounded-lg px-3.5 py-2.5 text-xs font-semibold transition-all duration-160 active:scale-[0.97] disabled:opacity-40 ${
+              justSaved
+                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                : 'bg-warmwhite text-asphalt hover:bg-warmwhite/90'
+            }`}
+          >
+            {savingRate ? 'Saving…' : justSaved ? 'Saved ✓' : 'Save'}
+          </button>
+
+          {rateInput && (
+            <button
+              onClick={() => {
+                setRateInput('');
+                onSaveCustomRate?.(null);
+                setJustSaved(true);
+                setTimeout(() => setJustSaved(false), 2000);
+              }}
+              title="Reset to default rate"
+              className="flex-shrink-0 px-2.5 py-2.5 text-xs font-mono text-warmwhite/40 hover:text-warmwhite transition-colors"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+
+        <p className="text-[10px] text-warmwhite/30 font-mono mt-1.5">
+          Overrides default rate for this passenger. Leave blank to reset.
+        </p>
+      </div>
+
       {/* Payment breakdown */}
       <div className="grid grid-cols-3 gap-2 mb-5">
         <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2.5 text-center">
@@ -134,7 +230,7 @@ export function PassengerDetailsModal({
                       size="sm"
                     />
                     <span className="text-[11px] font-mono text-warmwhite/40 flex-shrink-0">
-                      Seat {b.seat_number} · Rs. {rateFor(b.trip_id)}
+                      Seat {b.seat_number} · Rs. {rateFor(b)}
                     </span>
                   </div>
                 </div>

@@ -13,6 +13,28 @@ interface NotifyUserParams {
   emailHtml: string;
 }
 
+interface SubscriptionKeys {
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+}
+
+async function sendPushPayload(
+  subs: SubscriptionKeys[],
+  payload: { title: string; body: string; url?: string; tag?: string }
+) {
+  const webpush = getWebPush();
+  const serialized = JSON.stringify(payload);
+  return Promise.allSettled(
+    subs.map((sub) =>
+      webpush.sendNotification(
+        { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+        serialized
+      )
+    )
+  );
+}
+
 /**
  * Single-recipient version — push if they have a live subscription,
  * personalized email otherwise. Used for approval/rejection where the
@@ -29,16 +51,7 @@ export async function notifyUser(params: NotifyUserParams) {
 
   if (subs?.length) {
     try {
-      const webpush = getWebPush();
-      const results = await Promise.allSettled(
-        subs.map((sub) =>
-          webpush.sendNotification(
-            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-            JSON.stringify({ title, body, url, tag })
-          )
-        )
-      );
-
+      const results = await sendPushPayload(subs, { title, body, url, tag });
       const succeeded = results.some((r) => r.status === 'fulfilled');
       const staleIds = subs.filter((_, i) => results[i].status === 'rejected').map((s) => s.id);
       if (staleIds.length) {
@@ -96,27 +109,15 @@ export async function notifyAll(params: NotifyAllParams) {
   const staleSubIds: string[] = [];
 
   if (subs?.length) {
-    let webpush;
+    let results;
     try {
-      webpush = getWebPush();
+      results = await sendPushPayload(subs, { title, body, url, tag });
     } catch {
       // VAPID keys not configured — everyone falls back to email this call.
       emailFallback.push(...users.filter((u) => subscribedUserIds.has(u.id)));
     }
 
-    if (webpush) {
-      const results = await Promise.allSettled(
-        subs.map((sub) =>
-          webpush.sendNotification(
-            {
-              endpoint: sub.endpoint,
-              keys: { p256dh: sub.p256dh, auth: sub.auth },
-            },
-            JSON.stringify({ title, body, url, tag })
-          )
-        )
-      );
-
+    if (results) {
       results.forEach((res, i) => {
         if (res.status === 'fulfilled') {
           pushed++;

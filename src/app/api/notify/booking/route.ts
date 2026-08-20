@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { sendEmail, ADMIN_EMAIL } from '@/lib/email/mailer';
 import { newBookingEmail } from '@/lib/email/templates';
+import { formatNotificationDate, formatNotificationTime } from '@/lib/formatNotification';
 
 export async function POST(req: Request) {
   try {
@@ -17,13 +18,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
+    const formattedDate = formatNotificationDate(tripDate);
+    const formattedTime = formatNotificationTime(tripTime) || 'TBD';
+
     const { subject, html } = newBookingEmail({
       passengerName,
       passengerEmail,
       pickupLocation: locationLine,
       seatNumber,
-      tripDate,
-      tripTime: tripTime || 'TBD',
+      tripDate: formattedDate,
+      tripTime: formattedTime,
     });
 
     const { error } = await sendEmail({ to: ADMIN_EMAIL, subject, html });

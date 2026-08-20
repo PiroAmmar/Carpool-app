@@ -12,6 +12,7 @@ import { Sidebar } from '@/components/Sidebar';
 import { HudBar } from '@/components/HudBar';
 import { LocationBadge } from '@/components/LocationBadge';
 import { categoryOf } from '@/lib/tripCategory';
+import { saveUserWhatsApp } from '@/lib/userProfile';
 import type { Trip, Booking, Route } from '@/types';
 import type { BookingSubmission } from '@/types';
 
@@ -25,6 +26,7 @@ interface DashboardClientProps {
   userName: string;
   userWhatsApp?: string | null;
   globalRate?: number | null;
+  userCustomRate?: number | null;
   isAdmin?: boolean;
 }
 
@@ -42,7 +44,7 @@ function formatTripDateTime(date: string, time: string): string {
 
 function formatTripDateOnly(dateStr: string): string {
   try {
-    const dt = new Date(dateStr);
+    const dt = new Date(dateStr.includes('T') ? dateStr : `${dateStr}T00:00:00`);
     if (Number.isNaN(dt.getTime())) return dateStr;
     return dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
   } catch {
@@ -72,11 +74,13 @@ export function DashboardClient({
   userName,
   userWhatsApp,
   globalRate: initialGlobalRate,
+  userCustomRate: initialUserCustomRate,
   isAdmin,
 }: DashboardClientProps) {
   const [trips, setTrips] = useState<Trip[]>(initialTrips);
   const [routes] = useState<Route[]>(initialRoutes);
   const [globalRate, setGlobalRate] = useState<number | null>(initialGlobalRate ?? null);
+  const [userCustomRate, setUserCustomRate] = useState<number | null>(initialUserCustomRate ?? null);
   const [activeTripId, setActiveTripId] = useState<string | null>(
     initialTripId || (initialTrips.length > 0 ? initialTrips[0].id : null)
   );
@@ -88,6 +92,12 @@ export function DashboardClient({
   if (prevWhatsAppProp !== userWhatsApp) {
     setPrevWhatsAppProp(userWhatsApp);
     setWhatsAppNumber(userWhatsApp || null);
+  }
+
+  const [prevCustomRateProp, setPrevCustomRateProp] = useState(initialUserCustomRate);
+  if (prevCustomRateProp !== initialUserCustomRate) {
+    setPrevCustomRateProp(initialUserCustomRate);
+    setUserCustomRate(initialUserCustomRate ?? null);
   }
 
   const trip = useMemo(
@@ -149,23 +159,29 @@ export function DashboardClient({
         setTrips(tData as Trip[]);
       }
 
-      // 4. Current user WhatsApp & Profile live sync
+      // 4. Current user WhatsApp & Profile live sync (incl. custom_rate)
       if (currentUserId) {
         const { data: uData } = await supabase
           .from('users')
-          .select('whatsapp, phone')
+          .select('whatsapp, phone, custom_rate')
           .eq('id', currentUserId)
           .maybeSingle();
         if (uData) {
           const liveNum = uData.whatsapp || uData.phone || null;
           setWhatsAppNumber(liveNum);
+          setUserCustomRate(
+            uData.custom_rate !== null && uData.custom_rate !== undefined
+              ? Number(uData.custom_rate)
+              : null
+          );
         }
       }
     };
 
+    fetchLatest();
     const interval = setInterval(fetchLatest, 2500);
 
-    // Users channel (for live WhatsApp number updates)
+    // Users channel (for live WhatsApp number and custom_rate updates)
     const usersChannel = supabase
       .channel('dashboard-users')
       .on(
@@ -173,10 +189,22 @@ export function DashboardClient({
         { event: '*', schema: 'public', table: 'users' },
         (payload) => {
           if (payload.new && typeof payload.new === 'object') {
-            const u = payload.new as { id?: string; whatsapp?: string | null; phone?: string | null };
+            const u = payload.new as {
+              id?: string;
+              whatsapp?: string | null;
+              phone?: string | null;
+              custom_rate?: number | null;
+            };
             if (u.id === currentUserId) {
               const liveNum = u.whatsapp || u.phone || null;
               setWhatsAppNumber(liveNum);
+              if ('custom_rate' in u) {
+                setUserCustomRate(
+                  u.custom_rate !== null && u.custom_rate !== undefined
+                    ? Number(u.custom_rate)
+                    : null
+                );
+              }
             }
           }
         }
@@ -294,7 +322,8 @@ export function DashboardClient({
   }, [trip, myBooking]);
 
   const tripRate = (trip as (Trip & { rate?: number }) | null)?.rate ?? null;
-  const rate = tripRate ?? globalRate ?? null;
+  // Priority: Passenger Custom Rate > Per-Trip Override Rate > Global Default Rate
+  const rate = userCustomRate ?? tripRate ?? globalRate ?? null;
   const tripCategory = useMemo(() => categoryOf(trip?.direction), [trip]);
 
   /* ── Booking flow ─────────────────────────────────────────────── */
@@ -314,13 +343,25 @@ export function DashboardClient({
       status: 'pending',
       payment_status: 'pending',
       approved_time: null,
-      rate_applied: null,
+      rate_applied: rate,
       created_at: new Date().toISOString(),
     };
 
     setBookings((prev) => [optimistic, ...prev.filter((b) => b.id !== myBooking?.id)]);
     setSelectedSeat(null);
     setBookingError(null);
+
+    const onBookingSuccess = (confirmedBooking: Booking) => {
+      setBookings((prev) =>
+        prev.map((b) => (b.id === optimisticId ? confirmedBooking : b))
+      );
+      notifyAdminOfBooking(seatNumber, submission);
+    };
+
+    const onBookingFailure = (errorMessage: string) => {
+      setBookings((prev) => prev.filter((b) => b.id !== optimisticId));
+      setBookingError(errorMessage);
+    };
 
     // If rebooking over a rejected booking, call dedicated API route
     if (myBooking && myBooking.status === 'rejected') {
@@ -339,53 +380,48 @@ export function DashboardClient({
         });
 
         const json = await res.json();
-        if (!res.ok) {
-          setBookings((prev) => prev.filter((b) => b.id !== optimisticId));
-          setBookingError(json.error || 'Failed to re-book seat.');
-          return;
-        }
-
-        if (json.booking) {
-          setBookings((prev) =>
-            prev.map((b) => (b.id === optimisticId ? (json.booking as Booking) : b))
-          );
-          notifyAdminOfBooking(seatNumber, submission);
+        if (!res.ok || !json.booking) {
+          onBookingFailure(json.error || 'Failed to re-book seat.');
+        } else {
+          onBookingSuccess(json.booking as Booking);
         }
       } catch (err: unknown) {
-        setBookings((prev) => prev.filter((b) => b.id !== optimisticId));
         const msg = err instanceof Error ? err.message : 'Network error while re-booking.';
-        setBookingError(msg);
+        onBookingFailure(msg);
       }
       return;
     }
 
-    // Standard initial booking insert
-    const { data: newBooking, error } = await supabase
-      .from('bookings')
-      .insert({
-        trip_id: trip.id,
-        user_id: currentUserId,
-        seat_number: seatNumber,
-        pickup_location: submission.pickup_location ?? null,
-        dropoff_location: submission.dropoff_location ?? null,
-        free_by_time: submission.free_by_time ?? null,
-        status: 'pending',
-      })
-      .select()
-      .single();
+    // Standard initial booking — goes through API route so rate_applied is
+    // resolved server-side (trip.rate > users.custom_rate > settings.rate).
+    // The browser never touches users.custom_rate directly.
+    try {
+      const res = await fetch('/api/bookings/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tripId: trip.id,
+          seatNumber,
+          pickupLocation: submission.pickup_location ?? null,
+          dropoffLocation: submission.dropoff_location ?? null,
+          freeByTime: submission.free_by_time ?? null,
+        }),
+      });
 
-    if (error) {
-      setBookings((prev) => prev.filter((b) => b.id !== optimisticId));
-      if (error.code === '23505') {
-        setBookingError(`Seat ${seatNumber} was just taken. Please choose another seat.`);
+      const json = await res.json();
+
+      if (!res.ok || !json.success) {
+        const errorMsg =
+          json.code === '23505'
+            ? `Seat ${seatNumber} was just taken. Please choose another seat.`
+            : (json.error ?? 'Failed to book seat.');
+        onBookingFailure(errorMsg);
       } else {
-        setBookingError(error.message);
+        onBookingSuccess(json.booking as Booking);
       }
-    } else if (newBooking) {
-      setBookings((prev) =>
-        prev.map((b) => (b.id === optimisticId ? (newBooking as Booking) : b))
-      );
-      notifyAdminOfBooking(seatNumber, submission);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Network error while booking.';
+      onBookingFailure(msg);
     }
   }
 
@@ -410,33 +446,10 @@ export function DashboardClient({
 
   async function handleSaveWhatsApp(newNum: string) {
     if (!currentUserId) return;
-
-    // Check if number is already connected to another user
-    const { data: conflict, error: queryErr } = await supabase
-      .from('users')
-      .select('id')
-      .eq('whatsapp', newNum)
-      .neq('id', currentUserId)
-      .maybeSingle();
-
-    if (queryErr) {
-      console.error('[dashboard] error checking duplicate whatsapp:', queryErr.message);
+    const result = await saveUserWhatsApp(supabase, currentUserId, newNum);
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to update WhatsApp number');
     }
-
-    if (conflict) {
-      throw new Error('This WhatsApp number is already connected to a different user.');
-    }
-
-    const { error } = await supabase
-      .from('users')
-      .update({ whatsapp: newNum, phone: newNum })
-      .eq('id', currentUserId);
-
-    if (error) {
-      console.error('[dashboard] whatsapp update failed:', error.message);
-      throw new Error(error.message);
-    }
-
     setWhatsAppNumber(newNum);
     setIsWhatsAppModalOpen(false);
   }
@@ -471,14 +484,14 @@ export function DashboardClient({
           }
         }}
         isAdmin={isAdmin}
-        onUpdateWhatsApp={(num) => setWhatsAppNumber(num)}
+        onUpdateWhatsApp={setWhatsAppNumber}
       />
 
       <div className="w-full max-w-sm flex-1 flex flex-col relative z-0">
         <HudBar rate={rate} />
         <div className="px-6 py-6 flex flex-col flex-1">
           {/* ── WhatsApp missing alert banner ─────────────────────────── */}
-          {!isAdmin && !whatsAppNumber && (
+          {!isAdmin && !Boolean(whatsAppNumber && whatsAppNumber.trim()) && (
             <motion.div
               initial={{ opacity: 0, y: -6 }}
               animate={{ opacity: 1, y: 0 }}
@@ -666,12 +679,21 @@ export function DashboardClient({
                   </div>
 
                   {rate !== null && (
-                    <div className="inline-flex items-center gap-1.5 rounded-full bg-chrome/5 border border-chrome/10 px-2.5 py-0.5 flex-shrink-0">
-                      <span className="font-mono text-[10px] uppercase tracking-wider text-warmwhite/40 font-medium">
+                    <div
+                      className="inline-flex items-center gap-1.5 rounded-full bg-chrome/5 border border-chrome/10 px-2.5 py-0.5 flex-shrink-0"
+                      suppressHydrationWarning
+                    >
+                      <span
+                        className="font-mono text-[11px] uppercase tracking-wider text-warmwhite/40 font-medium"
+                        suppressHydrationWarning
+                      >
                         Fare
                       </span>
-                      <span className="font-mono text-xs font-bold text-warmwhite">
-                        <span className="text-[10px] text-warmwhite/50 font-sans mr-0.5">Rs.</span>
+                      <span
+                        className="font-mono text-[13px] font-bold text-warmwhite"
+                        suppressHydrationWarning
+                      >
+                        <span className="text-[11.5px] text-warmwhite/50 font-sans mr-0.5">Rs.</span>
                         {rate}
                       </span>
                     </div>

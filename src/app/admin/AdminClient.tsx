@@ -19,6 +19,7 @@ interface UserRecord {
   phone: string | null;
   whatsapp: string | null;
   role: string;
+  custom_rate: number | null;
   created_at: string;
 }
 
@@ -298,13 +299,21 @@ export function AdminClient({
         'postgres_changes',
         { event: '*', schema: 'public', table: 'bookings' },
         (payload) => {
-          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+          if (payload.eventType === 'UPDATE') {
             const updatedB = payload.new as Booking;
             setBookings((prev) => {
+              const exists = prev.some((b) => b.id === updatedB.id);
+              // Update in place — never reorder, or rows jump under the admin's cursor mid-edit.
+              if (exists) return prev.map((b) => (b.id === updatedB.id ? updatedB : b));
+              return [updatedB, ...prev];
+            });
+          } else if (payload.eventType === 'INSERT') {
+            const newB = payload.new as Booking;
+            setBookings((prev) => {
               const filtered = prev.filter(
-                (b) => b.id !== updatedB.id && !(b.user_id?.toLowerCase() === updatedB.user_id?.toLowerCase() && b.trip_id === updatedB.trip_id)
+                (b) => b.id !== newB.id && !(b.user_id?.toLowerCase() === newB.user_id?.toLowerCase() && b.trip_id === newB.trip_id)
               );
-              return [updatedB, ...filtered];
+              return [newB, ...filtered];
             });
           } else if (payload.eventType === 'DELETE') {
             const deletedId = (payload.old as Partial<Booking>).id;
@@ -384,22 +393,32 @@ export function AdminClient({
     }
   }
 
-  // Fire-and-forget — approval already committed, email failure shouldn't block the UI.
-  function notifyPassengerOfApproval(booking: Booking, submission: ApprovalSubmission) {
+  function getBookingRecipient(booking: Booking) {
     const passenger = users.find((u) => u.id === booking.user_id);
     const trip = trips.find((t) => t.id === booking.trip_id);
-    if (!passenger?.email || !trip) return;
+    if (!passenger?.email || !trip) return null;
+    return {
+      passenger,
+      trip,
+      passengerName: passenger.full_name || passenger.email.split('@')[0],
+    };
+  }
+
+  // Fire-and-forget — approval already committed, email failure shouldn't block the UI.
+  function notifyPassengerOfApproval(booking: Booking, submission: ApprovalSubmission) {
+    const ctx = getBookingRecipient(booking);
+    if (!ctx) return;
 
     fetch('/api/notify/approval', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        userId: passenger.id,
-        passengerName: passenger.full_name || passenger.email.split('@')[0],
-        passengerEmail: passenger.email,
+        userId: ctx.passenger.id,
+        passengerName: ctx.passengerName,
+        passengerEmail: ctx.passenger.email,
         approvedTime: submission.approved_time ?? null,
         adminMessage: submission.admin_message ?? null,
-        tripDate: trip.trip_date,
+        tripDate: ctx.trip.trip_date,
         pickupLocation: booking.pickup_location,
         dropoffLocation: booking.dropoff_location,
       }),
@@ -408,18 +427,17 @@ export function AdminClient({
 
   // Fire-and-forget — rejection already committed, email failure shouldn't block the UI.
   function notifyPassengerOfRejection(booking: Booking) {
-    const passenger = users.find((u) => u.id === booking.user_id);
-    const trip = trips.find((t) => t.id === booking.trip_id);
-    if (!passenger?.email || !trip) return;
+    const ctx = getBookingRecipient(booking);
+    if (!ctx) return;
 
     fetch('/api/notify/rejection', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        userId: passenger.id,
-        passengerName: passenger.full_name || passenger.email.split('@')[0],
-        passengerEmail: passenger.email,
-        tripDate: trip.trip_date,
+        userId: ctx.passenger.id,
+        passengerName: ctx.passengerName,
+        passengerEmail: ctx.passenger.email,
+        tripDate: ctx.trip.trip_date,
         seatNumber: booking.seat_number,
       }),
     }).catch((err) => console.error('[notify] rejection notify failed:', err));
@@ -606,7 +624,8 @@ export function AdminClient({
 
   // Fire-and-forget — trip already committed, notify failure shouldn't block the UI.
   function notifyPassengersOfNewTrip(trip: Trip) {
-    const route = routes.find((r) => r.id === trip.route_id);
+    const category = categoryOf(trip.direction);
+    const categoryLabel = category === 'campus_to_home' ? 'Campus to Home' : 'Home to Campus';
 
     fetch('/api/notify/trip-created', {
       method: 'POST',
@@ -614,7 +633,7 @@ export function AdminClient({
       body: JSON.stringify({
         tripDate: trip.trip_date,
         tripTime: trip.trip_time,
-        route: route ? `${route.name} — ${route.stops.join(' → ')}` : undefined,
+        category: categoryLabel,
       }),
     }).catch((err) => console.error('[notify] trip-created notify failed:', err));
   }
@@ -824,35 +843,25 @@ export function AdminClient({
                     {filteredTripsForDropdown.length === 0 ? (
                       <option value="">No trips match filter ({tripStatusFilter})</option>
                     ) : (
-                      <>
-                        {scheduledTrips.length > 0 && (tripStatusFilter === 'all' || tripStatusFilter === 'scheduled') && (
-                          <optgroup label={`— SCHEDULED TRIPS —${overflow(scheduledTrips) ? ` (showing ${TRIP_GROUP_CAP} of ${scheduledTrips.length}, search to see more)` : ''}`}>
-                            {cap(scheduledTrips).map((t) => (
+                      ([
+                        { key: 'scheduled' as const, label: 'SCHEDULED TRIPS', list: scheduledTrips, prefix: '' },
+                        { key: 'completed' as const, label: 'COMPLETED TRIPS', list: completedTrips, prefix: '[COMPLETED] ' },
+                        { key: 'cancelled' as const, label: 'CANCELLED TRIPS', list: cancelledTrips, prefix: '[CANCELLED] ' },
+                      ] as const).map(({ key, label, list, prefix }) => {
+                        if (list.length === 0 || (tripStatusFilter !== 'all' && tripStatusFilter !== key)) return null;
+                        return (
+                          <optgroup
+                            key={key}
+                            label={`— ${label} —${overflow(list) ? ` (showing ${TRIP_GROUP_CAP} of ${list.length}, search to see more)` : ''}`}
+                          >
+                            {cap(list).map((t) => (
                               <option key={t.id} value={t.id}>
-                                {t.trip_date} · {formatTime12h(t.trip_time)} ({formatDirection(t.direction) || 'No direction'})
+                                {prefix}{t.trip_date} · {formatTime12h(t.trip_time)} ({formatDirection(t.direction) || 'No direction'})
                               </option>
                             ))}
                           </optgroup>
-                        )}
-                        {completedTrips.length > 0 && (tripStatusFilter === 'all' || tripStatusFilter === 'completed') && (
-                          <optgroup label={`— COMPLETED TRIPS —${overflow(completedTrips) ? ` (showing ${TRIP_GROUP_CAP} of ${completedTrips.length}, search to see more)` : ''}`}>
-                            {cap(completedTrips).map((t) => (
-                              <option key={t.id} value={t.id}>
-                                [COMPLETED] {t.trip_date} · {formatTime12h(t.trip_time)} ({formatDirection(t.direction) || 'No direction'})
-                              </option>
-                            ))}
-                          </optgroup>
-                        )}
-                        {cancelledTrips.length > 0 && (tripStatusFilter === 'all' || tripStatusFilter === 'cancelled') && (
-                          <optgroup label={`— CANCELLED TRIPS —${overflow(cancelledTrips) ? ` (showing ${TRIP_GROUP_CAP} of ${cancelledTrips.length}, search to see more)` : ''}`}>
-                            {cap(cancelledTrips).map((t) => (
-                              <option key={t.id} value={t.id}>
-                                [CANCELLED] {t.trip_date} · {formatTime12h(t.trip_time)} ({formatDirection(t.direction) || 'No direction'})
-                              </option>
-                            ))}
-                          </optgroup>
-                        )}
-                      </>
+                        );
+                      })
                     )}
                   </select>
                 </div>
@@ -923,10 +932,19 @@ export function AdminClient({
                     >
                       <div className="bezel-core p-4 flex items-center justify-between gap-4">
                         <div className="flex flex-col gap-1 min-w-0">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-mono text-xs bg-chrome/10 text-warmwhite px-2 py-0.5 rounded">
                               Seat {b.seat_number}
                             </span>
+                            {b.rate_applied !== null && b.rate_applied !== undefined ? (
+                              <span className="font-mono text-[11px] bg-amber-500/10 text-amber-400 border border-amber-500/25 px-2 py-0.5 rounded font-semibold">
+                                Rs. {b.rate_applied}
+                              </span>
+                            ) : passenger?.custom_rate !== null && passenger?.custom_rate !== undefined ? (
+                              <span className="font-mono text-[11px] bg-amber-500/10 text-amber-400 border border-amber-500/25 px-2 py-0.5 rounded font-semibold">
+                                Rs. {passenger.custom_rate} (custom)
+                              </span>
+                            ) : null}
                             <span className="text-sm font-semibold text-warmwhite truncate">
                               {passengerName}
                             </span>
@@ -1221,7 +1239,7 @@ export function AdminClient({
                 <div key={u.id} className="bezel-shell">
                   <div className="bezel-core p-4 flex items-center justify-between gap-4">
                     <div className="flex flex-col gap-1 min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm font-semibold text-warmwhite">
                           {u.full_name || u.email.split('@')[0]}
                         </span>
@@ -1229,6 +1247,11 @@ export function AdminClient({
                           }`}>
                           {u.role}
                         </span>
+                        {u.custom_rate !== null && u.custom_rate !== undefined && (
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded uppercase bg-amber-500/15 text-amber-400 border border-amber-500/30 font-semibold tracking-wider">
+                            Rs. {u.custom_rate} custom
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs text-warmwhite/50 font-mono truncate">{u.email}</p>
                       {u.whatsapp || u.phone ? (
@@ -1238,9 +1261,14 @@ export function AdminClient({
                       ) : (
                         <p className="text-xs text-warmwhite/35 font-mono">No WhatsApp set</p>
                       )}
-                      <p className="text-[11px] text-warmwhite/40 font-mono">
-                        Bookings count: {userBookings.length}
-                      </p>
+                      <div className="flex items-center gap-2 text-[11px] font-mono text-warmwhite/40">
+                        <span>Bookings count: {userBookings.length}</span>
+                        {u.custom_rate !== null && u.custom_rate !== undefined ? (
+                          <span className="text-amber-400 font-medium">· Rate: Rs. {u.custom_rate}</span>
+                        ) : (
+                          <span className="text-warmwhite/30">· Rate: Default</span>
+                        )}
+                      </div>
                     </div>
 
                     <div className="flex flex-col gap-2 flex-shrink-0">
@@ -1506,13 +1534,35 @@ export function AdminClient({
 
       {detailsUser && (
         <PassengerDetailsModal
+          key={detailsUser.id}
           passengerName={detailsUser.full_name || detailsUser.email.split('@')[0]}
           passengerEmail={detailsUser.email}
           bookings={bookings.filter((b) => b.user_id === detailsUser.id)}
           trips={trips}
           routes={routes}
           globalRate={globalRate}
+          customRate={detailsUser.custom_rate}
           onClose={() => setDetailsUser(null)}
+          onSaveCustomRate={async (rate) => {
+            const { error } = await supabase
+              .from('users')
+              .update({ custom_rate: rate })
+              .eq('id', detailsUser.id);
+            if (!error) {
+              setUsers((prev) =>
+                prev.map((u) => (u.id === detailsUser.id ? { ...u, custom_rate: rate } : u))
+              );
+              setDetailsUser((prev) => (prev ? { ...prev, custom_rate: rate } : prev));
+              showNotification(
+                rate !== null
+                  ? `Custom rate Rs. ${rate} saved for ${detailsUser.full_name || detailsUser.email}`
+                  : `Custom rate reset to default for ${detailsUser.full_name || detailsUser.email}`
+              );
+            } else {
+              console.error('[admin] Failed to save custom rate:', error.message);
+              showNotification(`Failed to save custom rate: ${error.message}`);
+            }
+          }}
         />
       )}
     </div>

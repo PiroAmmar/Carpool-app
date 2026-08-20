@@ -1,15 +1,13 @@
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getAuthenticatedUser } from "@/lib/supabase/serverAuth";
+import { resolveBookingRate } from "@/lib/rates";
+import { isValidBookingPayload } from "@/lib/bookings/validation";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient();
-    const { data: authData, error: authError } = await supabase.auth.getUser();
-
-    if (authError || !authData.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { user, supabase, unauthorizedResponse } = await getAuthenticatedUser();
+    if (!user) return unauthorizedResponse;
 
     const body = await request.json();
     const { seatNumber, pickupLocation, dropoffLocation, freeByTime, bookingId } = body;
@@ -26,13 +24,17 @@ export async function POST(request: Request) {
       }
     }
 
-    const hasLocation = Boolean(pickupLocation) || Boolean(dropoffLocation && freeByTime);
-    if (!tripId || !seatNumber || !hasLocation) {
+    if (!isValidBookingPayload({ tripId, seatNumber, pickupLocation, dropoffLocation, freeByTime })) {
       return NextResponse.json({ error: "Missing required booking details" }, { status: 400 });
     }
 
-    const userId = authData.user.id;
+    const userId = user.id;
     const client = createAdminClient();
+
+    // Snapshot the rate at booking time: trip override > passenger
+    // custom rate > global rate. Frozen on the row so later custom_rate
+    // edits never rewrite this booking's historical amount.
+    const rateApplied = await resolveBookingRate(client, tripId, userId);
 
     // If bookingId was provided, update that booking row directly
     if (bookingId) {
@@ -46,6 +48,7 @@ export async function POST(request: Request) {
           status: "pending",
           approved_time: null,
           admin_message: null,
+          rate_applied: rateApplied,
         })
         .eq("id", bookingId)
         .eq("user_id", userId)
@@ -71,6 +74,7 @@ export async function POST(request: Request) {
         free_by_time: freeByTime ?? null,
         status: "pending",
         approved_time: null,
+        rate_applied: rateApplied,
       })
       .select()
       .single();

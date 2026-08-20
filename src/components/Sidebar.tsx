@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -8,6 +8,7 @@ import { WhatsAppModal } from '@/components/WhatsAppModal';
 import { PushToggle } from '@/app/PushToggle';
 import type { Trip, Booking } from '@/types';
 import { categoryOf, CATEGORY_LABEL, type TripCategory } from '@/lib/tripCategory';
+import { saveUserWhatsApp } from '@/lib/userProfile';
 
 function HomeIcon({ className = 'w-3.5 h-3.5' }: { className?: string }) {
   return (
@@ -207,10 +208,10 @@ export function Sidebar({
   const [whatsappNum, setWhatsappNum] = useState<string | null>(userWhatsApp || null);
   const [prevWhatsApp, setPrevWhatsApp] = useState(userWhatsApp);
 
-  if (prevWhatsApp !== userWhatsApp) {
-    setPrevWhatsApp(userWhatsApp);
-    setWhatsappNum(userWhatsApp || null);
-  }
+  const onUpdateWhatsAppRef = useRef(onUpdateWhatsApp);
+  useEffect(() => {
+    onUpdateWhatsAppRef.current = onUpdateWhatsApp;
+  });
 
   useEffect(() => {
     if (!currentUserId) return;
@@ -222,10 +223,13 @@ export function Sidebar({
         .eq('id', currentUserId)
         .maybeSingle();
       if (data) {
-        setWhatsappNum(data.whatsapp || data.phone || null);
+        const num = data.whatsapp || data.phone || null;
+        setWhatsappNum(num);
+        if (num) onUpdateWhatsAppRef.current?.(num);
       }
     };
 
+    fetchUser();
     const interval = setInterval(fetchUser, 2500);
 
     const userChannel = supabase
@@ -237,7 +241,9 @@ export function Sidebar({
           if (payload.new && typeof payload.new === 'object') {
             const u = payload.new as { id?: string; whatsapp?: string | null; phone?: string | null };
             if (u.id === currentUserId) {
-              setWhatsappNum(u.whatsapp || u.phone || null);
+              const num = u.whatsapp || u.phone || null;
+              setWhatsappNum(num);
+              if (num) onUpdateWhatsAppRef.current?.(num);
             }
           }
         }
@@ -252,36 +258,13 @@ export function Sidebar({
 
   async function handleSaveWhatsApp(newNum: string) {
     if (!currentUserId) return;
-
-    // Check if number is already connected to another user
-    const { data: conflict, error: queryErr } = await supabase
-      .from('users')
-      .select('id')
-      .eq('whatsapp', newNum)
-      .neq('id', currentUserId)
-      .maybeSingle();
-
-    if (queryErr) {
-      console.error('[sidebar] error checking duplicate whatsapp:', queryErr.message);
+    const result = await saveUserWhatsApp(supabase, currentUserId, newNum);
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to update WhatsApp number');
     }
-
-    if (conflict) {
-      throw new Error('This WhatsApp number is already connected to a different user.');
-    }
-
-    const { error } = await supabase
-      .from('users')
-      .update({ whatsapp: newNum, phone: newNum })
-      .eq('id', currentUserId);
-
-    if (error) {
-      console.error('[sidebar] whatsapp update failed:', error.message);
-      throw new Error(error.message);
-    } else {
-      setWhatsappNum(newNum);
-      onUpdateWhatsApp?.(newNum);
-      setIsWhatsAppModalOpen(false);
-    }
+    setWhatsappNum(newNum);
+    onUpdateWhatsApp?.(newNum);
+    setIsWhatsAppModalOpen(false);
   }
 
   async function handleLogout() {

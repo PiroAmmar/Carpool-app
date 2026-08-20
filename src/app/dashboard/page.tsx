@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { DashboardClient } from './DashboardClient';
+import { isAdminEmail } from '@/lib/admin';
 import type { Trip, Booking, Route } from '@/types';
 
 export default async function DashboardPage(props: {
@@ -12,14 +13,7 @@ export default async function DashboardPage(props: {
   if (!user) redirect('/login');
 
   const today = new Date().toISOString().split('T')[0];
-  const envAdmin = (process.env.ADMIN_EMAIL ?? '').toLowerCase().trim();
-  const ADMIN_EMAILS = [
-    'piroammar388@gmail.com',
-    'ammarcarpool@gmail.com',
-    ...(envAdmin ? envAdmin.split(',').map((e) => e.trim()) : []),
-  ];
-  const userEmail = (user.email ?? '').toLowerCase();
-  const isAdminEmail = ADMIN_EMAILS.includes(userEmail);
+  const isEnvAdmin = isAdminEmail(user.email);
 
   /* ── Parallel Single-Batch Queries for Instant Loading ──────────────── */
   const [
@@ -51,7 +45,7 @@ export default async function DashboardPage(props: {
 
     supabase
       .from('users')
-      .select('role, whatsapp, phone')
+      .select('role, whatsapp, phone, custom_rate')
       .eq('id', user.id)
       .maybeSingle(),
 
@@ -63,7 +57,7 @@ export default async function DashboardPage(props: {
     props.searchParams,
   ]);
 
-  const isAdmin = isAdminEmail || userProfileRes.data?.role === 'admin';
+  const isAdmin = isEnvAdmin || userProfileRes.data?.role === 'admin';
   const queryView = resolvedSearchParams?.view as string | undefined;
 
   // Redirect admin users to Admin Dashboard unless explicitly viewing passenger view
@@ -85,6 +79,7 @@ export default async function DashboardPage(props: {
 
   const userWhatsApp = userProfileRes.data?.whatsapp || userProfileRes.data?.phone || null;
   const globalRate = settingsRes.data?.rate ?? null;
+  const userCustomRate = (userProfileRes.data?.custom_rate as number | null | undefined) ?? null;
 
   return (
     <DashboardClient
@@ -97,6 +92,7 @@ export default async function DashboardPage(props: {
       userName={userName}
       userWhatsApp={userWhatsApp}
       globalRate={globalRate}
+      userCustomRate={userCustomRate}
       isAdmin={isAdmin}
     />
   );

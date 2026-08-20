@@ -1,9 +1,10 @@
-const CACHE_NAME = "carpool-hub-v1";
+const CACHE_NAME = "carpool-hub-v3";
 const STATIC_ASSETS = [
   "/manifest.json",
   "/icon-192.png",
   "/icon-512.png",
   "/favicon.svg",
+  "/badge.png",
 ];
 
 self.addEventListener("install", (event) => {
@@ -31,32 +32,37 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
-  // Never cache API, auth, or realtime traffic — booking state must stay live.
-  if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/auth/")) return;
-
-  // Next.js build assets are content-hashed — safe to cache-first.
-  if (url.pathname.startsWith("/_next/static/")) {
-    event.respondWith(
-      caches.match(request).then(
-        (cached) =>
-          cached ||
-          fetch(request).then((res) => {
-            const clone = res.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-            return res;
-          })
-      )
-    );
+  // Never cache API, auth, Supabase, or realtime traffic
+  if (
+    url.pathname.startsWith("/api/") ||
+    url.pathname.startsWith("/auth/") ||
+    url.pathname.startsWith("/_next/webpack-hmr") ||
+    url.pathname.includes("__turbopack__")
+  ) {
     return;
   }
 
-  // Everything else (pages, icons): network-first, fall back to cache when offline.
+  // During local development (localhost / LAN IP), always bypass SW cache
+  // so hot reloads and new component designs render instantly without hard refresh.
+  if (
+    url.hostname === "localhost" ||
+    url.hostname === "127.0.0.1" ||
+    url.hostname.startsWith("192.168.")
+  ) {
+    return;
+  }
+
+  // Network-First for HTML navigation and JS chunks:
+  // Tries network first so users always get the latest UI components.
+  // Falls back to cache if offline.
   event.respondWith(
     fetch(request)
-      .then((res) => {
-        const clone = res.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-        return res;
+      .then((networkRes) => {
+        if (networkRes && networkRes.status === 200 && networkRes.type === "basic") {
+          const clone = networkRes.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+        }
+        return networkRes;
       })
       .catch(() => caches.match(request))
   );
@@ -78,7 +84,7 @@ self.addEventListener("push", (event) => {
     self.registration.showNotification(title, {
       body,
       icon: "/icon-192.png",
-      badge: "/icon-192.png",
+      badge: "/badge.png",
       tag,
       data: { url },
     })

@@ -1,6 +1,6 @@
 export type TripCategory = 'home_to_campus' | 'campus_to_home';
 
-export const DIRECTIONS: Record<TripCategory, string> = {
+const DIRECTIONS: Record<TripCategory, string> = {
   home_to_campus: 'Home -> Campus',
   campus_to_home: 'Campus -> Home',
 };
