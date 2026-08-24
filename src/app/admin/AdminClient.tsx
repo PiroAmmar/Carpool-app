@@ -36,6 +36,48 @@ type Tab = 'bookings' | 'trips' | 'presets' | 'passengers' | 'payments' | 'setti
 
 type TripStatusFilterType = 'all' | 'scheduled' | 'completed' | 'cancelled' | 'closed';
 
+const SITE_URL = 'ammar-carpool.vercel.app';
+
+function formatDateOrdinal(dateStr: string): string {
+  const d = new Date(`${dateStr}T00:00:00`);
+  if (isNaN(d.getTime())) return dateStr;
+  const day = d.getDate();
+  const suffix = day % 10 === 1 && day !== 11 ? 'st'
+    : day % 10 === 2 && day !== 12 ? 'nd'
+      : day % 10 === 3 && day !== 13 ? 'rd'
+        : 'th';
+  const month = d.toLocaleString('en-US', { month: 'long' });
+  return `${day}${suffix} ${month} ${d.getFullYear()}`;
+}
+
+function buildWhatsAppShareMessage(
+  trip: Trip,
+  route: Route | undefined,
+  availableSeats: number,
+  classSlot: string
+): string {
+  const routeLine = route ? route.stops.join(' → ') : 'Route TBD';
+  const dateLine = formatDateOrdinal(trip.trip_date);
+
+  if (categoryOf(trip.direction) === 'campus_to_home') {
+    return [
+      `Return Seats available (${availableSeats})`,
+      `Leaving by ${formatTime12h(trip.trip_time)}`,
+      `*Route: ${route?.name || 'TBD'}*`,
+      routeLine,
+      `${SITE_URL} for ride booking & details`,
+    ].join('\n');
+  }
+
+  return [
+    `Car Seats available (${availableSeats}) for ${dateLine}`,
+    `Class in ${classSlot || 'TBD'} slot`,
+    `*Route: ${route?.name || 'TBD'}*`,
+    routeLine,
+    `${SITE_URL} for ride booking & details`,
+  ].join('\n');
+}
+
 function formatDirection(dir?: string | null): string {
   if (!dir) return '';
   return dir.replace(/->/g, '→');
@@ -357,6 +399,30 @@ export function AdminClient({
       supabase.removeChannel(channel);
     };
   }, [supabase]);
+
+  async function handleCopyShareMessage(trip: Trip) {
+    const route = routes.find((r) => r.id === trip.route_id);
+    const bookedCount = bookings.filter(
+      (b) => b.trip_id === trip.id && b.status === 'approved'
+    ).length;
+    const availableSeats = Math.max(trip.seats_total - bookedCount, 0);
+
+    let classSlot = '';
+    if (categoryOf(trip.direction) !== 'campus_to_home') {
+      const input = window.prompt('Class slot? (e.g. 9 AM)', '');
+      if (input === null) return; // admin cancelled
+      classSlot = input;
+    }
+
+    const message = buildWhatsAppShareMessage(trip, route, availableSeats, classSlot);
+
+    try {
+      await navigator.clipboard.writeText(message);
+      showNotification('WhatsApp message copied to clipboard');
+    } catch {
+      showNotification('Failed to copy — clipboard access denied');
+    }
+  }
 
   function showNotification(msg: string) {
     setStatusMessage(msg);
@@ -1113,7 +1179,16 @@ export function AdminClient({
                         </p>
                       </div>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {t.status === 'scheduled' && (
+                          <button
+                            onClick={() => handleCopyShareMessage(t)}
+                            title="Copy WhatsApp marketing message"
+                            className="px-2.5 py-1 rounded text-xs bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 font-semibold"
+                          >
+                            Copy
+                          </button>
+                        )}
                         {t.status === 'scheduled' && t.rate !== null && t.rate !== undefined && (
                           <button
                             onClick={() => handleResetTripRate(t.id)}
