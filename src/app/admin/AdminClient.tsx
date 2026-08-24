@@ -100,6 +100,29 @@ function formatTime12h(timeStr?: string | null): string {
   }
 }
 
+function formatRequestedAt(createdAt?: string | null): string {
+  if (!createdAt) return '';
+  try {
+    const d = new Date(createdAt);
+    if (isNaN(d.getTime())) return '';
+    const diffMs = Date.now() - d.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 1) return 'just now';
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffHr = Math.floor(diffMin / 60);
+    if (diffHr < 24) return `${diffHr}h ago`;
+    return d.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+  } catch {
+    return '';
+  }
+}
+
 interface TripFilterToggleProps {
   scheduledCount: number;
   completedCount: number;
@@ -266,9 +289,23 @@ export function AdminClient({
   const activeTripCategory = useMemo(() => categoryOf(activeTrip?.direction), [activeTrip]);
 
   const activeTripBookings = useMemo(
-    () => (activeTrip ? bookings.filter((b) => b.trip_id === activeTrip.id) : []),
+    () =>
+      activeTrip
+        ? bookings
+          .filter((b) => b.trip_id === activeTrip.id)
+          .sort((a, b) => (a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : 0))
+        : [],
     [bookings, activeTrip]
   );
+
+  // FCFS queue position among pending requests only — earliest request = #1
+  const pendingQueueRank = useMemo(() => {
+    const rank = new Map<string, number>();
+    activeTripBookings
+      .filter((b) => b.status === 'pending')
+      .forEach((b, i) => rank.set(b.id, i + 1));
+    return rank;
+  }, [activeTripBookings]);
 
   const paymentsTrips = useMemo(() => {
     return trips.filter((t) => {
@@ -1003,6 +1040,18 @@ export function AdminClient({
                             <span className="font-mono text-xs bg-chrome/10 text-warmwhite px-2 py-0.5 rounded">
                               Seat {b.seat_number}
                             </span>
+                            {b.status === 'pending' && pendingQueueRank.get(b.id) === 1 ? (
+                              <span
+                                title="First to request — first come, first served"
+                                className="font-mono text-[11px] bg-route-green/15 text-route-green border border-route-green/40 px-2 py-0.5 rounded font-bold uppercase"
+                              >
+                                #1 in queue
+                              </span>
+                            ) : b.status === 'pending' && pendingQueueRank.has(b.id) ? (
+                              <span className="font-mono text-[11px] bg-chrome/10 text-warmwhite/50 px-2 py-0.5 rounded">
+                                #{pendingQueueRank.get(b.id)} in queue
+                              </span>
+                            ) : null}
                             {b.rate_applied !== null && b.rate_applied !== undefined ? (
                               <span className="font-mono text-[11px] bg-amber-500/10 text-amber-400 border border-amber-500/25 px-2 py-0.5 rounded font-semibold">
                                 Rs. {b.rate_applied}
@@ -1030,6 +1079,11 @@ export function AdminClient({
                               <LocationBadge location={b.pickup_location} size="sm" />
                             )}
                           </div>
+                          {b.created_at && (
+                            <span className="text-[11px] text-warmwhite/35 font-mono">
+                              Requested {formatRequestedAt(b.created_at)}
+                            </span>
+                          )}
                           {passenger?.whatsapp || passenger?.phone ? (
                             <a
                               href={`https://wa.me/${(passenger.whatsapp || passenger.phone || '').replace(/[^\d+]/g, '')}`}
@@ -1157,6 +1211,10 @@ export function AdminClient({
                 const seatsBookedCount = bookings.filter(
                   (b) => b.trip_id === t.id && b.status === 'approved'
                 ).length;
+                const pendingForTrip = bookings
+                  .filter((b) => b.trip_id === t.id && b.status === 'pending')
+                  .sort((a, b) => (a.created_at < b.created_at ? -1 : 1));
+                const oldestPending = pendingForTrip[0];
                 const canClose = t.status === 'completed' && unpaidApprovedCount === 0;
 
                 return (
@@ -1178,6 +1236,11 @@ export function AdminClient({
                         <p className="text-[11px] font-mono text-warmwhite/50">
                           Seats: {t.seats_total} · Booked: {seatsBookedCount} · Rate: {t.rate ? `Rs. ${t.rate}` : 'Default'}
                         </p>
+                        {pendingForTrip.length > 0 && oldestPending && (
+                          <p className="text-[11px] font-mono text-signal-amber">
+                            {pendingForTrip.length} pending · oldest requested {formatRequestedAt(oldestPending.created_at)}
+                          </p>
+                        )}
                       </div>
 
                       <div className="flex items-center gap-2 flex-wrap">
