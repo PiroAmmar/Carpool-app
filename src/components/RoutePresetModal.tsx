@@ -48,7 +48,7 @@ export function RoutePresetModal({
           <label className="block mb-1 text-xs text-warmwhite/60 font-medium">Preset Name</label>
           <input
             type="text"
-            placeholder="e.g. Campus → Gulshan Route"
+            placeholder="e.g. Campus -> Gulshan Route"
             value={name}
             onChange={(e) => setName(e.target.value)}
             maxLength={60}

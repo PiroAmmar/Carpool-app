@@ -135,7 +135,7 @@ export function TripSchedulerModal({
             <option value="" className="bg-panel text-warmwhite/50">-- None --</option>
             {presets.map((preset) => (
               <option key={preset.id} value={preset.id} className="bg-panel text-warmwhite">
-                {preset.name} ({preset.stops.join(' → ')})
+                {preset.name} ({preset.stops.join(' -> ')})
               </option>
             ))}
           </select>

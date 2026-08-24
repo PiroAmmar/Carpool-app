@@ -56,14 +56,15 @@ function buildWhatsAppShareMessage(
   availableSeats: number,
   classSlot: string
 ): string {
-  const routeLine = route ? route.stops.join(' → ') : 'Route TBD';
+  const routeLine = route ? route.stops.join(' -> ') : 'Route TBD';
+  const routeName = (route?.name || 'TBD').replace(/→/g, '->');
   const dateLine = formatDateOrdinal(trip.trip_date);
 
   if (categoryOf(trip.direction) === 'campus_to_home') {
     return [
       `Return Seats available (${availableSeats})`,
       `Leaving by ${formatTime12h(trip.trip_time)}`,
-      `*Route: ${route?.name || 'TBD'}*`,
+      `*Route: ${routeName}*`,
       routeLine,
       `${SITE_URL} for ride booking & details`,
     ].join('\n');
@@ -72,7 +73,7 @@ function buildWhatsAppShareMessage(
   return [
     `Car Seats available (${availableSeats}) for ${dateLine}`,
     `Class in ${classSlot || 'TBD'} slot`,
-    `*Route: ${route?.name || 'TBD'}*`,
+    `*Route: ${routeName}*`,
     routeLine,
     `${SITE_URL} for ride booking & details`,
   ].join('\n');
@@ -1269,7 +1270,7 @@ export function AdminClient({
                       {r.name}
                     </span>
                     <p className="text-xs text-warmwhite/60 font-mono break-words">
-                      {r.stops.join(' → ')}
+                      {r.stops.join(' -> ')}
                     </p>
                   </div>
 
