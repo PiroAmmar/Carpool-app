@@ -236,10 +236,6 @@ export function AdminClient({
     () => sortTripsCustom(searchedTrips.filter((t) => t.status === 'completed')),
     [searchedTrips]
   );
-  const cancelledTrips = useMemo(
-    () => sortTripsCustom(searchedTrips.filter((t) => t.status === 'cancelled')),
-    [searchedTrips]
-  );
   const closedTrips = useMemo(
     () => sortTripsCustom(searchedTrips.filter((t) => t.status === 'closed')),
     [searchedTrips]
@@ -288,15 +284,17 @@ export function AdminClient({
 
   const activeTripCategory = useMemo(() => categoryOf(activeTrip?.direction), [activeTrip]);
 
-  const activeTripBookings = useMemo(
-    () =>
-      activeTrip
-        ? bookings
-          .filter((b) => b.trip_id === activeTrip.id)
-          .sort((a, b) => (a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : 0))
-        : [],
-    [bookings, activeTrip]
-  );
+  const activeTripBookings = useMemo(() => {
+    if (!activeTrip) return [];
+    const statusRank = { approved: 0, pending: 1, rejected: 2 } as const;
+    return bookings
+      .filter((b) => b.trip_id === activeTrip.id)
+      .sort((a, b) => {
+        const rankDiff = (statusRank[a.status as keyof typeof statusRank] ?? 3) - (statusRank[b.status as keyof typeof statusRank] ?? 3);
+        if (rankDiff !== 0) return rankDiff;
+        return a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : 0;
+      });
+  }, [bookings, activeTrip]);
 
   // FCFS queue position among pending requests only — earliest request = #1
   const pendingQueueRank = useMemo(() => {
@@ -950,7 +948,6 @@ export function AdminClient({
                       ([
                         { key: 'scheduled' as const, label: 'SCHEDULED TRIPS', list: scheduledTrips, prefix: '' },
                         { key: 'completed' as const, label: 'COMPLETED TRIPS', list: completedTrips, prefix: '[COMPLETED] ' },
-                        { key: 'cancelled' as const, label: 'CANCELLED TRIPS', list: cancelledTrips, prefix: '[CANCELLED] ' },
                       ] as const).map(({ key, label, list, prefix }) => {
                         if (list.length === 0 || (tripStatusFilter !== 'all' && tripStatusFilter !== key)) return null;
                         return (
@@ -1034,8 +1031,11 @@ export function AdminClient({
                       key={b.id}
                       className="bezel-shell"
                     >
-                      <div className="bezel-core p-4 flex items-center justify-between gap-4">
+                      <div className="bezel-core p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
                         <div className="flex flex-col gap-1 min-w-0">
+                          <span className="text-sm font-semibold text-warmwhite break-words">
+                            {passengerName}
+                          </span>
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-mono text-xs bg-chrome/10 text-warmwhite px-2 py-0.5 rounded">
                               Seat {b.seat_number}
@@ -1061,9 +1061,6 @@ export function AdminClient({
                                 Rs. {passenger.custom_rate} (custom)
                               </span>
                             ) : null}
-                            <span className="text-sm font-semibold text-warmwhite truncate">
-                              {passengerName}
-                            </span>
                           </div>
                           <div className="my-0.5 flex items-center gap-1.5 flex-wrap">
                             {activeTripCategory === 'campus_to_home' ? (
@@ -1111,9 +1108,9 @@ export function AdminClient({
                         </div>
 
                         {/* Status / Actions */}
-                        <div className="flex items-center gap-2 flex-shrink-0">
+                        <div className="flex flex-row sm:flex-col items-start gap-2 flex-shrink-0 sm:items-end">
                           {b.status === 'pending' && (
-                            <>
+                            <div className="flex items-center gap-2">
                               <button
                                 onClick={() => setApprovingBooking(b)}
                                 className="px-3 py-1.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-xs font-semibold hover:bg-emerald-500/30 transition-colors"
@@ -1126,7 +1123,7 @@ export function AdminClient({
                               >
                                 Reject
                               </button>
-                            </>
+                            </div>
                           )}
 
                           {b.status === 'approved' && (

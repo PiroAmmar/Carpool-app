@@ -55,16 +55,26 @@ export async function notifyUser(params: NotifyUserParams) {
       const succeeded = results.some((r) => r.status === 'fulfilled');
       const staleIds = subs.filter((_, i) => results[i].status === 'rejected').map((s) => s.id);
       if (staleIds.length) {
+        results.forEach((r, i) => {
+          if (r.status === 'rejected') {
+            console.error(`[notify] push send failed for sub ${subs[i].id}:`, r.reason);
+          }
+        });
         await supabase.from('push_subscriptions').delete().in('id', staleIds);
       }
 
       if (succeeded) return { pushed: true, emailed: false };
-    } catch {
-      // VAPID not configured — fall through to email.
+      console.error(`[notify] all push sends failed for user ${userId}, falling back to email`);
+    } catch (err) {
+      // VAPID not configured (or other setup error) — fall through to email.
+      console.error(`[notify] push send threw for user ${userId}:`, err instanceof Error ? err.message : err);
     }
+  } else {
+    console.error(`[notify] no push subscription for user ${userId}, using email`);
   }
 
   const { error } = await sendEmail({ to: userEmail, subject: emailSubject, html: emailHtml });
+  if (error) console.error(`[notify] email fallback failed for user ${userId}:`, error.message);
   return { pushed: false, emailed: !error };
 }
 
@@ -112,8 +122,9 @@ export async function notifyAll(params: NotifyAllParams) {
     let results;
     try {
       results = await sendPushPayload(subs, { title, body, url, tag });
-    } catch {
+    } catch (err) {
       // VAPID keys not configured — everyone falls back to email this call.
+      console.error('[notify] notifyAll push send threw:', err instanceof Error ? err.message : err);
       emailFallback.push(...users.filter((u) => subscribedUserIds.has(u.id)));
     }
 
@@ -123,6 +134,7 @@ export async function notifyAll(params: NotifyAllParams) {
           pushed++;
         } else {
           // 404/410 = subscription gone (browser data cleared, uninstalled, etc).
+          console.error(`[notify] notifyAll push send failed for sub ${subs[i].id}:`, res.reason);
           staleSubIds.push(subs[i].id);
           const user = users.find((u) => u.id === subs[i].user_id);
           if (user) emailFallback.push(user);
@@ -141,6 +153,7 @@ export async function notifyAll(params: NotifyAllParams) {
     if (bcc.length) {
       const { error } = await sendEmail({ bcc, subject: emailSubject, html: emailHtml });
       if (!error) emailed = bcc.length;
+      else console.error('[notify] notifyAll email fallback failed:', error.message);
     }
   }
 

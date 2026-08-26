@@ -53,6 +53,10 @@ export async function POST(req: Request) {
         emailSubject: subject,
         emailHtml: html,
       });
+      if (!result.pushed && !result.emailed) {
+        console.error('[notify/booking] admin received nothing — push and email both failed');
+        return NextResponse.json({ ok: false, ...result }, { status: 502 });
+      }
       return NextResponse.json({ ok: true, ...result });
     }
 
