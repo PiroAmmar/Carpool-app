@@ -27,4 +27,4 @@ export async function sendEmail(params: { to?: string; bcc?: string[]; subject: 
   }
 }
 
-export const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'piroammar388@gmail.com';
+export const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'ammarcarpool@gmail.com';

@@ -38,8 +38,7 @@ export async function POST(req: Request) {
     const { data: admin } = await supabase
       .from('users')
       .select('id, email')
-      .eq('role', 'admin')
-      .limit(1)
+      .eq('email', ADMIN_EMAIL)
       .maybeSingle();
 
     if (admin?.id) {
