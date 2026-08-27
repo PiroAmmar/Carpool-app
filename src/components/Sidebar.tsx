@@ -283,6 +283,22 @@ export function Sidebar({
     [trips]
   );
 
+  const availableTripsCount = useMemo(() => {
+    if (isAdmin) return 0;
+    const uid = currentUserId?.toLowerCase();
+    return scheduledTrips.filter((trip) => {
+      const tripBookings = bookings.filter((b) => b.trip_id === trip.id);
+      const activeBookings = tripBookings.filter((b) => b.status !== 'rejected');
+      const seatsTotal = trip.seats_total || 4;
+      const seatsRemaining = Math.max(0, seatsTotal - activeBookings.length);
+      if (seatsRemaining === 0) return false;
+      const hasMyActiveBooking = tripBookings.some(
+        (b) => b.user_id?.toLowerCase() === uid && b.status !== 'rejected'
+      );
+      return !hasMyActiveBooking;
+    }).length;
+  }, [scheduledTrips, bookings, currentUserId, isAdmin]);
+
   const tripsByCategory = useMemo(() => {
     const groups: Record<TripCategory, Trip[]> = { home_to_campus: [], campus_to_home: [] };
     for (const trip of scheduledTrips) {
@@ -443,6 +459,22 @@ export function Sidebar({
           <line x1="3" y1="6" x2="21" y2="6"></line>
           <line x1="3" y1="18" x2="21" y2="18"></line>
         </svg>
+
+        <AnimatePresence>
+          {availableTripsCount > 0 && (
+            <motion.span
+              key={availableTripsCount}
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0, opacity: 0 }}
+              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+              className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-accent-red text-white text-[10px] font-mono font-bold flex items-center justify-center leading-none pb-px shadow-[0_0_6px_rgba(239,68,68,0.5)] border border-panel"
+              aria-label={`${availableTripsCount} trip${availableTripsCount === 1 ? '' : 's'} available`}
+            >
+              {availableTripsCount > 9 ? '9+' : availableTripsCount}
+            </motion.span>
+          )}
+        </AnimatePresence>
       </button>
 
       <AnimatePresence>

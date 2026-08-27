@@ -1,8 +1,19 @@
 // Plain, readable HTML — no external CSS/fonts, email clients strip most of it anyway.
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://ammar-carpool.vercel.app';
+
 const wrap = (body: string) => `
   <div style="font-family:sans-serif;background:#0b0d10;color:#f2f1ed;padding:24px;border-radius:8px;">
     ${body}
+    <div style="margin-top:24px;padding-top:20px;border-top:1px solid #1e2229;text-align:center;">
+      <a href="${SITE_URL}"
+         style="display:inline-block;padding:10px 24px;background:#e0a526;color:#0b0d10;font-weight:700;font-size:13px;text-decoration:none;border-radius:6px;letter-spacing:0.03em;">
+        Open Dashboard →
+      </a>
+      <p style="color:#4b5260;font-size:11px;margin:12px 0 0;">
+        <a href="${SITE_URL}" style="color:#4b5260;">${SITE_URL}</a>
+      </p>
+    </div>
   </div>
 `;
 
