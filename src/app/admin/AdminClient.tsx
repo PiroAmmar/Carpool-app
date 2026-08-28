@@ -210,6 +210,7 @@ export function AdminClient({
   const [tripStatusFilter, setTripStatusFilter] = useState<TripStatusFilterType>('all');
   const [detailsUser, setDetailsUser] = useState<UserRecord | null>(null);
   const [tripSearchQuery, setTripSearchQuery] = useState('');
+  const [passengerSearchQuery, setPassengerSearchQuery] = useState('');
   const [paymentsFromDate, setPaymentsFromDate] = useState<string>('');
   const [paymentsToDate, setPaymentsToDate] = useState<string>('');
 
@@ -227,6 +228,12 @@ export function AdminClient({
     () => trips.filter((t) => matchesTripSearch(t, tripSearchQuery)),
     [trips, tripSearchQuery]
   );
+
+  const filteredPassengers = useMemo(() => {
+    const q = passengerSearchQuery.trim().toLowerCase();
+    if (!q) return users;
+    return users.filter((u) => (u.full_name || u.email.split('@')[0]).toLowerCase().includes(q));
+  }, [users, passengerSearchQuery]);
 
   const scheduledTrips = useMemo(
     () => sortTripsCustom(searchedTrips.filter((t) => t.status === 'scheduled')),
@@ -1364,11 +1371,22 @@ export function AdminClient({
           className="flex flex-col gap-4"
         >
           <h3 className="font-mono text-xs font-semibold tracking-widest text-warmwhite/80 uppercase mb-2">
-            Registered Users & Passengers ({users.length})
+            Registered Users & Passengers ({filteredPassengers.length})
           </h3>
 
+          <input
+            type="text"
+            value={passengerSearchQuery}
+            onChange={(e) => setPassengerSearchQuery(e.target.value)}
+            placeholder="Search by name..."
+            className="w-full px-3 py-2 rounded-lg bg-panel border border-chrome/15 text-sm text-warmwhite placeholder:text-warmwhite/30 font-mono focus:outline-none focus:border-emerald-500/40 transition-colors"
+          />
+
           <div className="flex flex-col gap-3">
-            {users.map((u) => {
+            {filteredPassengers.length === 0 && (
+              <p className="text-xs text-warmwhite/40 font-mono text-center py-6">No passengers match &quot;{passengerSearchQuery}&quot;</p>
+            )}
+            {filteredPassengers.map((u) => {
               const userBookings = bookings.filter((b) => b.user_id === u.id);
 
               return (
