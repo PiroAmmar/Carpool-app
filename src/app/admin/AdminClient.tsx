@@ -1529,11 +1529,10 @@ export function AdminClient({
                       </button>
                       <button
                         onClick={() => handleToggleBlacklist(u)}
-                        className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
-                          u.is_blacklisted
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${u.is_blacklisted
                             ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25'
                             : 'bg-rose-500/15 text-rose-400 border-rose-500/30 hover:bg-rose-500/25'
-                        }`}
+                          }`}
                       >
                         {u.is_blacklisted ? 'Unblacklist' : 'Blacklist'}
                       </button>
@@ -1602,7 +1601,6 @@ export function AdminClient({
             <span>Scheduled <span className="text-chrome font-bold">{scheduledTrips.length}</span></span>
             <span>Completed <span className="text-chrome font-bold">{completedTrips.length}</span></span>
             <span>Closed <span className="text-chrome font-bold">{closedTrips.length}</span></span>
-            <span>Cancelled <span className="text-chrome font-bold">{cancelledTrips.length}</span></span>
             <span>Total <span className="text-chrome font-bold">{scheduledTrips.length + completedTrips.length + closedTrips.length}</span></span>
           </div>
 
@@ -1720,15 +1718,14 @@ export function AdminClient({
                           <span className="font-mono text-xs text-warmwhite font-bold">
                             {t.trip_date} · {formatTime12h(t.trip_time)}
                           </span>
-                          <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded uppercase font-bold tracking-wider ${
-                            t.status === 'completed'
+                          <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded uppercase font-bold tracking-wider ${t.status === 'completed'
                               ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
                               : t.status === 'closed'
-                              ? 'bg-white/10 text-white/50 border border-white/20'
-                              : t.status === 'cancelled'
-                              ? 'bg-red-500/20 text-red-400 border border-red-500/40'
-                              : 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
-                          }`}>
+                                ? 'bg-white/10 text-white/50 border border-white/20'
+                                : t.status === 'cancelled'
+                                  ? 'bg-red-500/20 text-red-400 border border-red-500/40'
+                                  : 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
+                            }`}>
                             {t.status}
                           </span>
                         </div>
