@@ -1711,9 +1711,22 @@ export function AdminClient({
                   <div key={t.id} className="bezel-shell">
                     <div className="bezel-core p-4 flex items-center justify-between gap-4">
                       <div className="flex flex-col gap-1 min-w-0">
-                        <span className="font-mono text-xs text-warmwhite font-bold">
-                          {t.trip_date} · {formatTime12h(t.trip_time)}
-                        </span>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-mono text-xs text-warmwhite font-bold">
+                            {t.trip_date} · {formatTime12h(t.trip_time)}
+                          </span>
+                          <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded uppercase font-bold tracking-wider ${
+                            t.status === 'completed'
+                              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                              : t.status === 'closed'
+                              ? 'bg-white/10 text-white/50 border border-white/20'
+                              : t.status === 'cancelled'
+                              ? 'bg-red-500/20 text-red-400 border border-red-500/40'
+                              : 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
+                          }`}>
+                            {t.status}
+                          </span>
+                        </div>
                         <p className="text-xs text-accent-red font-medium truncate">
                           {formatDirection(t.direction) || 'No direction'}
                         </p>
