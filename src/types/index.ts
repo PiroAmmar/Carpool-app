@@ -20,6 +20,7 @@ export interface Booking {
   admin_message: string | null;
   status: 'pending' | 'approved' | 'rejected';
   payment_status: 'pending' | 'paid' | 'waived';
+  payment_method: 'online' | 'cash' | null;
   approved_time: string | null;
   rate_applied: number | null;
   created_at: string;

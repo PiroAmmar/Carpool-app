@@ -7,6 +7,7 @@ import { AdminApprovalModal } from '@/components/AdminApprovalModal';
 import { TripSchedulerModal } from '@/components/TripSchedulerModal';
 import { RoutePresetModal } from '@/components/RoutePresetModal';
 import { PassengerDetailsModal } from '@/components/PassengerDetailsModal';
+import { PaymentMethodModal, type PaymentMethod } from '@/components/PaymentMethodModal';
 import { LocationBadge } from '@/components/LocationBadge';
 import { categoryOf } from '@/lib/tripCategory';
 import type { Trip, Booking, Route } from '@/types';
@@ -275,6 +276,9 @@ export function AdminClient({
 
   // Modals state
   const [approvingBooking, setApprovingBooking] = useState<Booking | null>(null);
+  const [paymentMethodModalRows, setPaymentMethodModalRows] = useState<
+    { bookingId: string; passengerName: string; amount: number }[] | null
+  >(null);
   const [isSchedulerOpen, setIsSchedulerOpen] = useState(false);
   const [presetModalState, setPresetModalState] = useState<{ isOpen: boolean; preset: Route | null }>({
     isOpen: false,
@@ -332,10 +336,15 @@ export function AdminClient({
 
     let paidAmount = 0, pendingAmount = 0, waivedAmount = 0;
     let paidCount = 0, pendingCount = 0, waivedCount = 0;
+    let onlineAmount = 0, cashAmount = 0, onlineCount = 0, cashCount = 0;
 
     for (const b of relevant) {
       const amt = fareFor(b, tripById.get(b.trip_id));
-      if (b.payment_status === 'paid') { paidAmount += amt; paidCount++; }
+      if (b.payment_status === 'paid') {
+        paidAmount += amt; paidCount++;
+        if (b.payment_method === 'online') { onlineAmount += amt; onlineCount++; }
+        else if (b.payment_method === 'cash') { cashAmount += amt; cashCount++; }
+      }
       else if (b.payment_status === 'waived') { waivedAmount += amt; waivedCount++; }
       else { pendingAmount += amt; pendingCount++; }
     }
@@ -344,7 +353,11 @@ export function AdminClient({
       ? Math.round((paidCount / (paidCount + pendingCount)) * 100)
       : 0;
 
-    return { paidAmount, pendingAmount, waivedAmount, paidCount, pendingCount, waivedCount, collectionRate, relevant, tripById };
+    return {
+      paidAmount, pendingAmount, waivedAmount, paidCount, pendingCount, waivedCount,
+      onlineAmount, cashAmount, onlineCount, cashCount,
+      collectionRate, relevant, tripById,
+    };
   }, [bookings, trips, paymentsTripIds, globalRate]);
 
   const pendingPassengerRows = useMemo(() => {
@@ -558,10 +571,24 @@ export function AdminClient({
     waived: 'pending',
   };
 
+  function passengerNameFor(userId: string): string {
+    const u = users.find((u) => u.id === userId);
+    return u?.full_name || u?.email?.split('@')[0] || 'Unknown';
+  }
+
   async function handleCyclePaymentStatus(bookingId: string) {
     const target = bookings.find((b) => b.id === bookingId);
     if (!target) return;
     const next = PAYMENT_STATUS_CYCLE[target.payment_status];
+
+    // Transitioning into 'paid' needs a payment method — open modal instead of applying directly.
+    if (next === 'paid') {
+      const trip = trips.find((t) => t.id === target.trip_id);
+      setPaymentMethodModalRows([
+        { bookingId: target.id, passengerName: passengerNameFor(target.user_id), amount: fareFor(target, trip) },
+      ]);
+      return;
+    }
 
     setBookings((prev) =>
       prev.map((b) => (b.id === bookingId ? { ...b, payment_status: next } : b))
@@ -581,28 +608,57 @@ export function AdminClient({
     }
   }
 
-  async function handleMarkTripPaid(tripId: string) {
-    const targetIds = bookings
-      .filter((b) => b.trip_id === tripId && b.status === 'approved' && b.payment_status === 'pending')
-      .map((b) => b.id);
-    if (targetIds.length === 0) return;
+  function handleMarkTripPaid(tripId: string) {
+    const targets = bookings.filter(
+      (b) => b.trip_id === tripId && b.status === 'approved' && b.payment_status === 'pending'
+    );
+    if (targets.length === 0) return;
+    const trip = trips.find((t) => t.id === tripId);
+    setPaymentMethodModalRows(
+      targets.map((b) => ({
+        bookingId: b.id,
+        passengerName: passengerNameFor(b.user_id),
+        amount: fareFor(b, trip),
+      }))
+    );
+  }
+
+  async function handleConfirmPaymentMethods(methods: Record<string, PaymentMethod>) {
+    const bookingIds = Object.keys(methods);
+    if (bookingIds.length === 0) {
+      setPaymentMethodModalRows(null);
+      return;
+    }
 
     const prevBookings = bookings;
     setBookings((prev) =>
-      prev.map((b) => (targetIds.includes(b.id) ? { ...b, payment_status: 'paid' } : b))
+      prev.map((b) =>
+        bookingIds.includes(b.id)
+          ? { ...b, payment_status: 'paid', payment_method: methods[b.id] }
+          : b
+      )
+    );
+    setPaymentMethodModalRows(null);
+
+    // Method differs per booking, so update grouped by method rather than one shared payload.
+    const byMethod: Record<PaymentMethod, string[]> = { cash: [], online: [] };
+    bookingIds.forEach((id) => byMethod[methods[id]].push(id));
+
+    const results = await Promise.all(
+      (Object.entries(byMethod) as [PaymentMethod, string[]][])
+        .filter(([, ids]) => ids.length > 0)
+        .map(([method, ids]) =>
+          supabase.from('bookings').update({ payment_status: 'paid', payment_method: method }).in('id', ids)
+        )
     );
 
-    const { error } = await supabase
-      .from('bookings')
-      .update({ payment_status: 'paid' })
-      .in('id', targetIds);
-
-    if (error) {
-      console.error('[admin] mark trip paid failed:', error.message);
-      showNotification(`Failed to mark paid: ${error.message}`);
+    const failed = results.find((r) => r.error);
+    if (failed?.error) {
+      console.error('[admin] mark paid failed:', failed.error.message);
+      showNotification(`Failed to mark paid: ${failed.error.message}`);
       setBookings(prevBookings);
     } else {
-      showNotification(`${targetIds.length} booking(s) marked paid`);
+      showNotification(`${bookingIds.length} booking(s) marked paid`);
     }
   }
 
@@ -1492,6 +1548,14 @@ export function AdminClient({
             </div>
           </div>
 
+          {/* Trip counts strip */}
+          <div className="flex items-center gap-4 flex-wrap font-mono text-[11px] text-warmwhite/50">
+            <span>Scheduled <span className="text-chrome font-bold">{scheduledTrips.length}</span></span>
+            <span>Completed <span className="text-chrome font-bold">{completedTrips.length}</span></span>
+            <span>Closed <span className="text-chrome font-bold">{closedTrips.length}</span></span>
+            <span>Total <span className="text-chrome font-bold">{trips.length}</span></span>
+          </div>
+
           {/* Stat strip */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="bezel-shell">
@@ -1522,6 +1586,60 @@ export function AdminClient({
                 <span className="text-[10px] font-mono text-warmwhite/35">paid / (paid+pending)</span>
               </div>
             </div>
+          </div>
+
+          {/* Collected by method */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bezel-shell">
+              <div className="bezel-core p-4 flex flex-col gap-1">
+                <span className="text-[11px] font-mono uppercase tracking-widest text-warmwhite/40">Online</span>
+                <span className="font-mono text-lg font-bold text-emerald-400">Rs. {paymentStats.onlineAmount}</span>
+                <span className="text-[10px] font-mono text-warmwhite/35">{paymentStats.onlineCount} bookings</span>
+              </div>
+            </div>
+            <div className="bezel-shell">
+              <div className="bezel-core p-4 flex flex-col gap-1">
+                <span className="text-[11px] font-mono uppercase tracking-widest text-warmwhite/40">Cash</span>
+                <span className="font-mono text-lg font-bold text-emerald-400">Rs. {paymentStats.cashAmount}</span>
+                <span className="text-[10px] font-mono text-warmwhite/35">{paymentStats.cashCount} bookings</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Pending passengers */}
+          <h4 className="font-mono text-xs font-semibold tracking-widest text-warmwhite/60 uppercase mt-2">
+            Pending Payments ({pendingPassengerRows.length})
+          </h4>
+          <div className="flex flex-col gap-3">
+            {pendingPassengerRows.length === 0 ? (
+              <div className="bezel-shell">
+                <div className="bezel-core p-6 text-center text-xs font-mono text-warmwhite/40">
+                  Nothing outstanding
+                </div>
+              </div>
+            ) : (
+              pendingPassengerRows.map(({ booking, trip, user, amount }) => (
+                <div key={booking.id} className="bezel-shell">
+                  <div className="bezel-core p-4 flex items-center justify-between gap-4">
+                    <div className="flex flex-col gap-1 min-w-0">
+                      <span className="text-sm font-semibold text-warmwhite truncate">
+                        {user?.full_name || user?.email?.split('@')[0] || 'Unknown'}
+                      </span>
+                      <p className="text-[11px] font-mono text-warmwhite/50">
+                        {trip ? `${trip.trip_date} · ${formatDirection(trip.direction)}` : 'Trip removed'} · Rs. {amount}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleCyclePaymentStatus(booking.id)}
+                      title="Click to cycle payment status"
+                      className="flex-shrink-0 px-2.5 py-1 rounded text-xs bg-signal-amber/20 text-signal-amber hover:bg-signal-amber/30"
+                    >
+                      pending
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
 
           {/* Per-trip breakdown */}
@@ -1571,42 +1689,6 @@ export function AdminClient({
                   </div>
                 );
               })
-            )}
-          </div>
-
-          {/* Pending passengers */}
-          <h4 className="font-mono text-xs font-semibold tracking-widest text-warmwhite/60 uppercase mt-2">
-            Pending Payments ({pendingPassengerRows.length})
-          </h4>
-          <div className="flex flex-col gap-3">
-            {pendingPassengerRows.length === 0 ? (
-              <div className="bezel-shell">
-                <div className="bezel-core p-6 text-center text-xs font-mono text-warmwhite/40">
-                  Nothing outstanding
-                </div>
-              </div>
-            ) : (
-              pendingPassengerRows.map(({ booking, trip, user, amount }) => (
-                <div key={booking.id} className="bezel-shell">
-                  <div className="bezel-core p-4 flex items-center justify-between gap-4">
-                    <div className="flex flex-col gap-1 min-w-0">
-                      <span className="text-sm font-semibold text-warmwhite truncate">
-                        {user?.full_name || user?.email?.split('@')[0] || 'Unknown'}
-                      </span>
-                      <p className="text-[11px] font-mono text-warmwhite/50">
-                        {trip ? `${trip.trip_date} · ${formatDirection(trip.direction)}` : 'Trip removed'} · Rs. {amount}
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => handleCyclePaymentStatus(booking.id)}
-                      title="Click to cycle payment status"
-                      className="flex-shrink-0 px-2.5 py-1 rounded text-xs bg-signal-amber/20 text-signal-amber hover:bg-signal-amber/30"
-                    >
-                      pending
-                    </button>
-                  </div>
-                </div>
-              ))
             )}
           </div>
         </motion.div>
@@ -1667,6 +1749,14 @@ export function AdminClient({
           freeByTime={approvingBooking.free_by_time}
           onConfirm={handleApproveConfirm}
           onCancel={() => setApprovingBooking(null)}
+        />
+      )}
+
+      {paymentMethodModalRows && (
+        <PaymentMethodModal
+          rows={paymentMethodModalRows}
+          onConfirm={handleConfirmPaymentMethods}
+          onCancel={() => setPaymentMethodModalRows(null)}
         />
       )}
 

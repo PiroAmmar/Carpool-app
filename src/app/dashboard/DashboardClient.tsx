@@ -342,6 +342,7 @@ export function DashboardClient({
       admin_message: null,
       status: 'pending',
       payment_status: 'pending',
+      payment_method: null,
       approved_time: null,
       rate_applied: rate,
       created_at: new Date().toISOString(),
