@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/supabase/serverAuth';
+import { rateLimit } from '@/lib/rateLimit';
 
 export async function POST(req: Request) {
+  const limited = rateLimit(req, 'push-subscribe');
+  if (limited) return limited;
+
   const { user, supabase, unauthorizedResponse } = await getAuthenticatedUser();
   if (!user) return unauthorizedResponse;
 

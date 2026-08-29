@@ -5,8 +5,14 @@ import { dailyDigestEmail } from '@/lib/email/templates';
 
 export async function GET(req: Request) {
   // Vercel Cron sends this header automatically in production.
+  // Fails closed: a missing CRON_SECRET env var blocks the route rather
+  // than silently leaving it open to unauthenticated callers.
+  if (!process.env.CRON_SECRET) {
+    console.error('[cron/digest] CRON_SECRET not set — refusing request');
+    return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 });
+  }
   const authHeader = req.headers.get('authorization');
-  if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

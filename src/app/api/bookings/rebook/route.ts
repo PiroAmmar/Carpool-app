@@ -2,10 +2,14 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthenticatedUser } from "@/lib/supabase/serverAuth";
 import { resolveBookingRate } from "@/lib/rates";
 import { isValidBookingPayload } from "@/lib/bookings/validation";
+import { rateLimit } from "@/lib/rateLimit";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
   try {
+    const limited = rateLimit(request, "bookings-rebook");
+    if (limited) return limited;
+
     const { user, supabase, unauthorizedResponse } = await getAuthenticatedUser();
     if (!user) return unauthorizedResponse;
 

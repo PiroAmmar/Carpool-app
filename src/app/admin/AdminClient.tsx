@@ -250,6 +250,10 @@ export function AdminClient({
     () => sortTripsCustom(searchedTrips.filter((t) => t.status === 'closed')),
     [searchedTrips]
   );
+  const cancelledTrips = useMemo(
+    () => sortTripsCustom(searchedTrips.filter((t) => t.status === 'cancelled')),
+    [searchedTrips]
+  );
 
   const cap = (arr: Trip[]) => (tripSearchQuery ? arr : arr.slice(0, TRIP_GROUP_CAP));
   const overflow = (arr: Trip[]) => (tripSearchQuery ? 0 : Math.max(0, arr.length - TRIP_GROUP_CAP));
@@ -1598,7 +1602,8 @@ export function AdminClient({
             <span>Scheduled <span className="text-chrome font-bold">{scheduledTrips.length}</span></span>
             <span>Completed <span className="text-chrome font-bold">{completedTrips.length}</span></span>
             <span>Closed <span className="text-chrome font-bold">{closedTrips.length}</span></span>
-            <span>Total <span className="text-chrome font-bold">{trips.length}</span></span>
+            <span>Cancelled <span className="text-chrome font-bold">{cancelledTrips.length}</span></span>
+            <span>Total <span className="text-chrome font-bold">{searchedTrips.length}</span></span>
           </div>
 
           {/* Stat strip */}

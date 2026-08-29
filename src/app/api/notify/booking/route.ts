@@ -4,9 +4,19 @@ import { newBookingEmail } from '@/lib/email/templates';
 import { formatNotificationDate, formatNotificationTime } from '@/lib/formatNotification';
 import { notifyUser } from '@/lib/notify/notifyAll';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { getAuthenticatedUser } from '@/lib/supabase/serverAuth';
+import { rateLimit } from '@/lib/rateLimit';
 
 export async function POST(req: Request) {
   try {
+    const limited = rateLimit(req, 'notify-booking');
+    if (limited) return limited;
+
+    // Triggered by a passenger right after they book — any signed-in user
+    // may call this (not admin-only), just must be authenticated.
+    const { unauthorizedResponse } = await getAuthenticatedUser();
+    if (unauthorizedResponse) return unauthorizedResponse;
+
     const body = await req.json();
     const { passengerName, passengerEmail, pickupLocation, dropoffLocation, freeByTime, seatNumber, tripDate, tripTime } = body;
 

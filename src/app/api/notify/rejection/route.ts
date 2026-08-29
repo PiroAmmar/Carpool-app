@@ -2,9 +2,17 @@ import { NextResponse } from 'next/server';
 import { bookingRejectedEmail } from '@/lib/email/templates';
 import { notifyUser } from '@/lib/notify/notifyAll';
 import { formatNotificationDate } from '@/lib/formatNotification';
+import { getAuthenticatedAdmin } from '@/lib/supabase/adminAuth';
+import { rateLimit } from '@/lib/rateLimit';
 
 export async function POST(req: Request) {
   try {
+    const limited = rateLimit(req, 'notify-rejection');
+    if (limited) return limited;
+
+    const { unauthorizedResponse } = await getAuthenticatedAdmin();
+    if (unauthorizedResponse) return unauthorizedResponse;
+
     const body = await req.json();
     const { userId, passengerName, passengerEmail, tripDate, seatNumber } = body;
 
