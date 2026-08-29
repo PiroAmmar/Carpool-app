@@ -1603,7 +1603,7 @@ export function AdminClient({
             <span>Completed <span className="text-chrome font-bold">{completedTrips.length}</span></span>
             <span>Closed <span className="text-chrome font-bold">{closedTrips.length}</span></span>
             <span>Cancelled <span className="text-chrome font-bold">{cancelledTrips.length}</span></span>
-            <span>Total <span className="text-chrome font-bold">{searchedTrips.length}</span></span>
+            <span>Total <span className="text-chrome font-bold">{scheduledTrips.length + completedTrips.length + closedTrips.length}</span></span>
           </div>
 
           {/* Stat strip */}
