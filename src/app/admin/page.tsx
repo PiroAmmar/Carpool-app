@@ -14,6 +14,8 @@ interface UserRecord {
   whatsapp: string | null;
   role: string;
   custom_rate: number | null;
+  is_blacklisted?: boolean;
+  blacklisted_at?: string | null;
   created_at: string;
 }
 

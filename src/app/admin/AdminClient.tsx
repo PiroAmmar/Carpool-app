@@ -21,6 +21,8 @@ interface UserRecord {
   whatsapp: string | null;
   role: string;
   custom_rate: number | null;
+  is_blacklisted?: boolean;
+  blacklisted_at?: string | null;
   created_at: string;
 }
 
@@ -875,6 +877,33 @@ export function AdminClient({
     else showNotification('Route preset deleted');
   }
 
+  /* ── Passenger Blacklist Handler ───────────────────────── */
+  async function handleToggleBlacklist(targetUser: UserRecord) {
+    const willBlacklist = !targetUser.is_blacklisted;
+    const name = targetUser.full_name || targetUser.email;
+    const confirmed = window.confirm(
+      willBlacklist
+        ? `Blacklist ${name}? They will be blocked from booking seats and viewing the dashboard until unblacklisted.`
+        : `Remove ${name} from the blacklist? They will regain normal access immediately.`
+    );
+    if (!confirmed) return;
+
+    const patch = {
+      is_blacklisted: willBlacklist,
+      blacklisted_at: willBlacklist ? new Date().toISOString() : null,
+    };
+
+    const { error } = await supabase.from('users').update(patch).eq('id', targetUser.id);
+    if (error) {
+      showNotification(`Failed to update blacklist status: ${error.message}`);
+      return;
+    }
+
+    setUsers((prev) => prev.map((u) => (u.id === targetUser.id ? { ...u, ...patch } : u)));
+    setDetailsUser((prev) => (prev && prev.id === targetUser.id ? { ...prev, ...patch } : prev));
+    showNotification(willBlacklist ? `${name} blacklisted` : `${name} unblacklisted`);
+  }
+
   /* ── Global Rate Settings Handler ──────────────────────── */
   async function handleSaveGlobalRate(newRate: number) {
     setGlobalRate(newRate);
@@ -1011,6 +1040,7 @@ export function AdminClient({
                       ([
                         { key: 'scheduled' as const, label: 'SCHEDULED TRIPS', list: scheduledTrips, prefix: '' },
                         { key: 'completed' as const, label: 'COMPLETED TRIPS', list: completedTrips, prefix: '[COMPLETED] ' },
+                        { key: 'closed' as const, label: 'CLOSED TRIPS', list: closedTrips, prefix: '[CLOSED] ' },
                       ] as const).map(({ key, label, list, prefix }) => {
                         if (list.length === 0 || (tripStatusFilter !== 'all' && tripStatusFilter !== key)) return null;
                         return (
@@ -1462,6 +1492,11 @@ export function AdminClient({
                             Rs. {u.custom_rate} custom
                           </span>
                         )}
+                        {u.is_blacklisted && (
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded uppercase bg-black/50 text-white/70 border border-white/20 font-bold tracking-wider">
+                            Blacklisted
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs text-warmwhite/50 font-mono truncate">{u.email}</p>
                       {u.whatsapp || u.phone ? (
@@ -1487,6 +1522,16 @@ export function AdminClient({
                         className="px-3 py-1.5 rounded-full bg-chrome/10 text-chrome border border-chrome/25 text-xs font-medium hover:bg-chrome/15 transition-colors"
                       >
                         Details
+                      </button>
+                      <button
+                        onClick={() => handleToggleBlacklist(u)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
+                          u.is_blacklisted
+                            ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25'
+                            : 'bg-rose-500/15 text-rose-400 border-rose-500/30 hover:bg-rose-500/25'
+                        }`}
+                      >
+                        {u.is_blacklisted ? 'Unblacklist' : 'Blacklist'}
                       </button>
                       {u.whatsapp || u.phone ? (
                         <a
@@ -1786,6 +1831,8 @@ export function AdminClient({
           routes={routes}
           globalRate={globalRate}
           customRate={detailsUser.custom_rate}
+          isBlacklisted={detailsUser.is_blacklisted}
+          onToggleBlacklist={() => handleToggleBlacklist(detailsUser)}
           onClose={() => setDetailsUser(null)}
           onSaveCustomRate={async (rate) => {
             const { error } = await supabase

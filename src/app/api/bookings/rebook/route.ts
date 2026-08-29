@@ -31,6 +31,15 @@ export async function POST(request: Request) {
     const userId = user.id;
     const client = createAdminClient();
 
+    const { data: userRow } = await client
+      .from("users")
+      .select("is_blacklisted")
+      .eq("id", userId)
+      .maybeSingle();
+    if (userRow?.is_blacklisted) {
+      return NextResponse.json({ error: "Your account has been blocked from booking" }, { status: 403 });
+    }
+
     // Snapshot the rate at booking time: trip override > passenger
     // custom rate > global rate. Frozen on the row so later custom_rate
     // edits never rewrite this booking's historical amount.

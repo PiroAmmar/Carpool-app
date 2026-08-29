@@ -45,7 +45,7 @@ export default async function DashboardPage(props: {
 
     supabase
       .from('users')
-      .select('role, whatsapp, phone, custom_rate')
+      .select('role, whatsapp, phone, custom_rate, is_blacklisted')
       .eq('id', user.id)
       .maybeSingle(),
 
@@ -80,6 +80,7 @@ export default async function DashboardPage(props: {
   const userWhatsApp = userProfileRes.data?.whatsapp || userProfileRes.data?.phone || null;
   const globalRate = settingsRes.data?.rate ?? null;
   const userCustomRate = (userProfileRes.data?.custom_rate as number | null | undefined) ?? null;
+  const isBlacklisted = Boolean(userProfileRes.data?.is_blacklisted);
 
   return (
     <DashboardClient
@@ -94,6 +95,7 @@ export default async function DashboardPage(props: {
       globalRate={globalRate}
       userCustomRate={userCustomRate}
       isAdmin={isAdmin}
+      isBlacklisted={isBlacklisted}
     />
   );
 }

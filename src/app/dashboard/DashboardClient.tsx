@@ -28,6 +28,7 @@ interface DashboardClientProps {
   globalRate?: number | null;
   userCustomRate?: number | null;
   isAdmin?: boolean;
+  isBlacklisted?: boolean;
 }
 
 function formatTripDateTime(date: string, time: string): string {
@@ -76,6 +77,7 @@ export function DashboardClient({
   globalRate: initialGlobalRate,
   userCustomRate: initialUserCustomRate,
   isAdmin,
+  isBlacklisted,
 }: DashboardClientProps) {
   const [trips, setTrips] = useState<Trip[]>(initialTrips);
   const [routes] = useState<Route[]>(initialRoutes);
@@ -465,6 +467,33 @@ export function DashboardClient({
     if (firstAvailable <= seatsTotal) {
       setSelectedSeat(firstAvailable);
     }
+  }
+
+  if (isBlacklisted) {
+    return (
+      <main className="min-h-screen bg-asphalt flex flex-col items-center justify-center relative overflow-hidden px-6 text-center">
+        <div className="w-full max-w-sm flex flex-col items-center gap-4">
+          <span className="font-mono text-[10px] tracking-widest text-rose-400 uppercase font-bold">
+            Access Restricted
+          </span>
+          <h1 className="text-xl font-bold text-warmwhite">
+            You&apos;ve been blocked from Ammar FAST Carpool
+          </h1>
+          <p className="text-sm text-warmwhite/60 leading-relaxed">
+            Your account has been blocked by the admin. You can&apos;t book seats or view available rides right now.
+            If you think this is a mistake, please reach out to the admin directly.
+          </p>
+          <a
+            href="https://wa.me/923342121401"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 px-5 py-2.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-sm font-medium hover:bg-emerald-500/25 transition-colors"
+          >
+            Contact Admin on WhatsApp
+          </a>
+        </div>
+      </main>
+    );
   }
 
   return (

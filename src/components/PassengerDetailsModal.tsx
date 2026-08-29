@@ -14,8 +14,10 @@ interface PassengerDetailsModalProps {
   routes: Route[];
   globalRate: number | null;
   customRate: number | null;
+  isBlacklisted?: boolean;
   onClose: () => void;
   onSaveCustomRate: (rate: number | null) => Promise<void> | void;
+  onToggleBlacklist?: () => void;
 }
 
 function formatDirection(dir?: string | null): string {
@@ -42,8 +44,10 @@ export function PassengerDetailsModal({
   routes,
   globalRate,
   customRate,
+  isBlacklisted,
   onClose,
   onSaveCustomRate,
+  onToggleBlacklist,
 }: PassengerDetailsModalProps) {
   const approved = bookings.filter((b) => b.status === 'approved');
 
@@ -108,6 +112,25 @@ export function PassengerDetailsModal({
       maxWidth="max-w-md"
       ariaLabel="Passenger Details"
     >
+      {/* Blacklist status + toggle */}
+      {onToggleBlacklist && (
+        <div className="mb-5 flex items-center justify-between rounded-lg border border-white/10 bg-asphalt px-3.5 py-2.5">
+          <span className={`text-xs font-mono font-semibold ${isBlacklisted ? 'text-rose-400' : 'text-warmwhite/50'}`}>
+            {isBlacklisted ? 'Blacklisted — booking & dashboard blocked' : 'Not blacklisted'}
+          </span>
+          <button
+            onClick={onToggleBlacklist}
+            className={`flex-shrink-0 rounded-lg px-3.5 py-2 text-xs font-semibold transition-all duration-160 active:scale-[0.97] border ${
+              isBlacklisted
+                ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25'
+                : 'bg-rose-500/15 text-rose-400 border-rose-500/30 hover:bg-rose-500/25'
+            }`}
+          >
+            {isBlacklisted ? 'Unblacklist' : 'Blacklist'}
+          </button>
+        </div>
+      )}
+
       {/* Custom rate override — clean & minimal design system pattern */}
       <div className="mb-5">
         <div className="flex items-center justify-between mb-1.5">
