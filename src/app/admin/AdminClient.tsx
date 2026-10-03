@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { AdminApprovalModal } from '@/components/AdminApprovalModal';
@@ -9,6 +9,7 @@ import { RoutePresetModal } from '@/components/RoutePresetModal';
 import { PassengerDetailsModal } from '@/components/PassengerDetailsModal';
 import { PaymentMethodModal, type PaymentMethod } from '@/components/PaymentMethodModal';
 import { LocationBadge } from '@/components/LocationBadge';
+import { PullToRefresh } from '@/components/PullToRefresh';
 import { categoryOf } from '@/lib/tripCategory';
 import type { Trip, Booking, Route } from '@/types';
 import type { ApprovalSubmission } from '@/types';
@@ -383,18 +384,28 @@ export function AdminClient({
   );
 
   /* ── Realtime & Periodic Sync (Bookings, Trips, Users) ──────── */
-  useEffect(() => {
-    const fetchLatestData = async () => {
-      const [bRes, tRes, uRes] = await Promise.all([
-        supabase.from('bookings').select('*').order('created_at', { ascending: false }),
-        supabase.from('trips').select('*').order('trip_date', { ascending: false }),
-        supabase.from('users').select('*').order('created_at', { ascending: false }),
-      ]);
-      if (bRes.data) setBookings(bRes.data as Booking[]);
-      if (tRes.data) setTrips(tRes.data as Trip[]);
-      if (uRes.data) setUsers(uRes.data as UserRecord[]);
-    };
+  const fetchLatestData = useCallback(async () => {
+    const [bRes, tRes, uRes] = await Promise.all([
+      supabase.from('bookings').select('*').order('created_at', { ascending: false }),
+      supabase.from('trips').select('*').order('trip_date', { ascending: false }),
+      supabase.from('users').select('*').order('created_at', { ascending: false }),
+    ]);
+    if (bRes.data) setBookings(bRes.data as Booking[]);
+    if (tRes.data) setTrips(tRes.data as Trip[]);
+    if (uRes.data) setUsers(uRes.data as UserRecord[]);
+  }, [supabase]);
 
+  const refreshAll = useCallback(async () => {
+    const [, rRes, sRes] = await Promise.all([
+      fetchLatestData(),
+      supabase.from('routes').select('*').order('created_at', { ascending: false }),
+      supabase.from('settings').select('rate').eq('id', 1).maybeSingle(),
+    ]);
+    if (rRes.data) setRoutes(rRes.data as Route[]);
+    if (sRes.data && sRes.data.rate !== undefined) setGlobalRate(sRes.data.rate);
+  }, [supabase, fetchLatestData]);
+
+  useEffect(() => {
     const interval = setInterval(fetchLatestData, 2500);
 
     const channel = supabase
@@ -460,7 +471,7 @@ export function AdminClient({
       clearInterval(interval);
       supabase.removeChannel(channel);
     };
-  }, [supabase]);
+  }, [supabase, fetchLatestData]);
 
   async function handleCopyShareMessage(trip: Trip) {
     const route = routes.find((r) => r.id === trip.route_id);
@@ -956,6 +967,7 @@ export function AdminClient({
 
   return (
     <div className="flex flex-col flex-1 pb-10 max-w-2xl mx-auto w-full">
+      <PullToRefresh onRefresh={refreshAll} />
       {/* Toast Notification */}
       <AnimatePresence>
         {statusMessage && (

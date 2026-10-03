@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { SeatMap } from '@/components/SeatMap';
@@ -10,6 +10,7 @@ import { RouteDisplay } from '@/components/RouteDisplay';
 import { ContactCard } from '@/components/ContactCard';
 import { Sidebar } from '@/components/Sidebar';
 import { HudBar } from '@/components/HudBar';
+import { PullToRefresh } from '@/components/PullToRefresh';
 import { LocationBadge } from '@/components/LocationBadge';
 import { categoryOf } from '@/lib/tripCategory';
 import { saveUserWhatsApp } from '@/lib/userProfile';
@@ -125,6 +126,8 @@ export function DashboardClient({
     setBookingError(null);
   }
 
+  const refreshRef = useRef<() => Promise<void>>(async () => {});
+
   /* ── Periodic & Realtime Sync (Bookings, Settings & Trips) ───────── */
   useEffect(() => {
     const today = new Date().toISOString().split('T')[0];
@@ -180,6 +183,7 @@ export function DashboardClient({
       }
     };
 
+    refreshRef.current = fetchLatest;
     fetchLatest();
     const interval = setInterval(fetchLatest, 2500);
 
@@ -516,6 +520,7 @@ export function DashboardClient({
         isAdmin={isAdmin}
         onUpdateWhatsApp={setWhatsAppNumber}
       />
+      <PullToRefresh onRefresh={() => refreshRef.current()} />
 
       <div className="w-full max-w-sm flex-1 flex flex-col relative z-0">
         <HudBar rate={rate} />
