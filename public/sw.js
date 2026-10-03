@@ -16,11 +16,17 @@ self.addEventListener("install", (event) => {
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(
-        keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
-      )
-    )
+    Promise.all([
+      caches.keys().then((keys) =>
+        Promise.all(
+          keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
+        )
+      ),
+      // Start the page request in parallel with SW boot on cold launch.
+      self.registration.navigationPreload
+        ? self.registration.navigationPreload.enable()
+        : Promise.resolve(),
+    ])
   );
   self.clients.claim();
 });
@@ -56,15 +62,18 @@ self.addEventListener("fetch", (event) => {
   // Tries network first so users always get the latest UI components.
   // Falls back to cache if offline.
   event.respondWith(
-    fetch(request)
-      .then((networkRes) => {
+    (async () => {
+      try {
+        const networkRes = (await event.preloadResponse) || (await fetch(request));
         if (networkRes && networkRes.status === 200 && networkRes.type === "basic") {
           const clone = networkRes.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
         }
         return networkRes;
-      })
-      .catch(() => caches.match(request))
+      } catch {
+        return caches.match(request);
+      }
+    })()
   );
 });
 
