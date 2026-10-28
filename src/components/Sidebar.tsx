@@ -1,5 +1,6 @@
 'use client';
 
+import { startPolling } from '@/lib/poll';
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
@@ -230,7 +231,7 @@ export function Sidebar({
     };
 
     fetchUser();
-    const interval = setInterval(fetchUser, 2500);
+    const stopPolling = startPolling(fetchUser);
 
     const userChannel = supabase
       .channel(`sidebar-user-${currentUserId}`)
@@ -251,7 +252,7 @@ export function Sidebar({
       .subscribe();
 
     return () => {
-      clearInterval(interval);
+      stopPolling();
       supabase.removeChannel(userChannel);
     };
   }, [supabase, currentUserId]);

@@ -1,5 +1,6 @@
 'use client';
 
+import { startPolling } from '@/lib/poll';
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
@@ -406,7 +407,7 @@ export function AdminClient({
   }, [supabase, fetchLatestData]);
 
   useEffect(() => {
-    const interval = setInterval(fetchLatestData, 2500);
+    const stopPolling = startPolling(fetchLatestData);
 
     const channel = supabase
       .channel('admin-realtime')
@@ -468,7 +469,7 @@ export function AdminClient({
       .subscribe();
 
     return () => {
-      clearInterval(interval);
+      stopPolling();
       supabase.removeChannel(channel);
     };
   }, [supabase, fetchLatestData]);

@@ -1,5 +1,6 @@
 'use client';
 
+import { startPolling } from '@/lib/poll';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
@@ -185,7 +186,7 @@ export function DashboardClient({
 
     refreshRef.current = fetchLatest;
     fetchLatest();
-    const interval = setInterval(fetchLatest, 2500);
+    const stopPolling = startPolling(fetchLatest);
 
     // Users channel (for live WhatsApp number and custom_rate updates)
     const usersChannel = supabase
@@ -284,7 +285,7 @@ export function DashboardClient({
       .subscribe();
 
     return () => {
-      clearInterval(interval);
+      stopPolling();
       supabase.removeChannel(usersChannel);
       supabase.removeChannel(bookingsChannel);
       supabase.removeChannel(settingsChannel);
