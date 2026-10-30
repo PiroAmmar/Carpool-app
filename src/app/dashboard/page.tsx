@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { DashboardClient } from './DashboardClient';
 import { isAdminEmail } from '@/lib/admin';
-import type { Trip, Booking, Route } from '@/types';
+import type { Trip, Booking, Route, SeatBooking } from '@/types';
 
 export default async function DashboardPage(props: {
   searchParams?: Promise<{ [key: string]: string | string[] | undefined }> | { [key: string]: string | string[] | undefined };
@@ -22,6 +22,7 @@ export default async function DashboardPage(props: {
     settingsRes,
     userProfileRes,
     bookingsRes,
+    seatsRes,
     resolvedSearchParams,
   ] = await Promise.all([
     supabase
@@ -52,6 +53,12 @@ export default async function DashboardPage(props: {
     supabase
       .from('bookings')
       .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false }),
+
+    supabase
+      .from('seat_occupancy')
+      .select('*')
       .order('created_at', { ascending: false }),
 
     props.searchParams,
@@ -68,6 +75,7 @@ export default async function DashboardPage(props: {
   const trips = (tripsRes.data as Trip[]) ?? [];
   const routes = (routesRes.data as Route[]) ?? [];
   const bookings = (bookingsRes.data as Booking[]) ?? [];
+  const seats = (seatsRes.data as SeatBooking[]) ?? [];
   const queryTripId = resolvedSearchParams?.tripId as string | undefined;
   const initialTripId = queryTripId || (trips.length > 0 ? trips[0].id : null);
 
@@ -88,6 +96,7 @@ export default async function DashboardPage(props: {
       initialRoutes={routes}
       initialTripId={initialTripId}
       initialBookings={bookings}
+      initialSeats={seats}
       currentUserId={user.id}
       currentUserEmail={user.email ?? ''}
       userName={userName}

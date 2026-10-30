@@ -15,7 +15,7 @@ import { PullToRefresh } from '@/components/PullToRefresh';
 import { LocationBadge } from '@/components/LocationBadge';
 import { categoryOf } from '@/lib/tripCategory';
 import { saveUserWhatsApp } from '@/lib/userProfile';
-import type { Trip, Booking, Route } from '@/types';
+import type { Trip, Booking, Route, SeatBooking } from '@/types';
 import type { BookingSubmission } from '@/types';
 
 interface DashboardClientProps {
@@ -23,6 +23,7 @@ interface DashboardClientProps {
   initialRoutes: Route[];
   initialTripId: string | null;
   initialBookings: Booking[];
+  initialSeats: SeatBooking[];
   currentUserId: string;
   currentUserEmail: string;
   userName: string;
@@ -72,6 +73,7 @@ export function DashboardClient({
   initialRoutes,
   initialTripId,
   initialBookings,
+  initialSeats,
   currentUserId,
   currentUserEmail,
   userName,
@@ -114,7 +116,10 @@ export function DashboardClient({
     return routes.find((r) => r.id === trip.route_id) || null;
   }, [routes, trip]);
 
+  // Own bookings (full rows) vs. everyone's seat occupancy (no payment or
+  // location data) — RLS only lets a passenger read their own bookings.
   const [bookings, setBookings] = useState<Booking[]>(initialBookings);
+  const [seats, setSeats] = useState<SeatBooking[]>(initialSeats);
   const [selectedSeat, setSelectedSeat] = useState<number | null>(null);
   const [bookingError, setBookingError] = useState<string | null>(null);
 
@@ -134,13 +139,23 @@ export function DashboardClient({
     const today = new Date().toISOString().split('T')[0];
 
     const fetchLatest = async () => {
-      // 1. Fetch latest bookings across trips
-      const { data: bData } = await supabase
-        .from('bookings')
-        .select('*')
-        .order('created_at', { ascending: false });
+      // 1. Own bookings + seat occupancy across trips
+      const [{ data: bData }, { data: occData }] = await Promise.all([
+        supabase
+          .from('bookings')
+          .select('*')
+          .eq('user_id', currentUserId)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('seat_occupancy')
+          .select('*')
+          .order('created_at', { ascending: false }),
+      ]);
       if (bData) {
         setBookings(bData as Booking[]);
+      }
+      if (occData) {
+        setSeats(occData as SeatBooking[]);
       }
 
       // 2. Global Rate from settings
@@ -218,12 +233,12 @@ export function DashboardClient({
       )
       .subscribe();
 
-    // Bookings channel
+    // Bookings channel (own rows only)
     const bookingsChannel = supabase
       .channel('dashboard-bookings')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'bookings' },
+        { event: '*', schema: 'public', table: 'bookings', filter: `user_id=eq.${currentUserId}` },
         (payload) => {
           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
             const updatedB = payload.new as Booking;
@@ -234,6 +249,24 @@ export function DashboardClient({
           } else if (payload.eventType === 'DELETE') {
             const deletedId = (payload.old as Partial<Booking>).id;
             setBookings((prev) => prev.filter((b) => b.id !== deletedId));
+          }
+        }
+      )
+      .subscribe();
+
+    // Seat occupancy channel (everyone's seats, for the seat map)
+    const seatsChannel = supabase
+      .channel('dashboard-seats')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'seat_occupancy' },
+        (payload) => {
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const updatedS = payload.new as SeatBooking;
+            setSeats((prev) => [updatedS, ...prev.filter((s) => s.id !== updatedS.id)]);
+          } else if (payload.eventType === 'DELETE') {
+            const deletedId = (payload.old as Partial<SeatBooking>).id;
+            setSeats((prev) => prev.filter((s) => s.id !== deletedId));
           }
         }
       )
@@ -288,15 +321,23 @@ export function DashboardClient({
       stopPolling();
       supabase.removeChannel(usersChannel);
       supabase.removeChannel(bookingsChannel);
+      supabase.removeChannel(seatsChannel);
       supabase.removeChannel(settingsChannel);
       supabase.removeChannel(tripsChannel);
     };
   }, [supabase, currentUserId]);
 
   /* ── Derived state for currently active trip ───────────────────── */
+  // Own bookings are authoritative for the current user (they carry
+  // optimistic inserts); seat_occupancy fills in everyone else.
+  const allSeats = useMemo<SeatBooking[]>(() => {
+    const uid = currentUserId?.toLowerCase();
+    return [...bookings, ...seats.filter((s) => s.user_id?.toLowerCase() !== uid)];
+  }, [bookings, seats, currentUserId]);
+
   const currentTripBookings = useMemo(
-    () => (trip ? bookings.filter((b) => b.trip_id === trip.id) : []),
-    [bookings, trip]
+    () => (trip ? allSeats.filter((b) => b.trip_id === trip.id) : []),
+    [allSeats, trip]
   );
 
   const activeBookings = useMemo(
@@ -313,15 +354,12 @@ export function DashboardClient({
   // Find the user's booking on the currently active trip (most recent first)
   const myBooking = useMemo(() => {
     if (!trip) return undefined;
-    const uid = currentUserId?.toLowerCase();
-    const userBookings = currentTripBookings.filter(
-      (b) => b.user_id?.toLowerCase() === uid
-    );
+    const userBookings = bookings.filter((b) => b.trip_id === trip.id);
     if (userBookings.length === 0) return undefined;
     return [...userBookings].sort(
       (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     )[0];
-  }, [currentTripBookings, currentUserId, trip]);
+  }, [bookings, trip]);
 
   const canBook = useMemo(() => {
     if (!trip || trip.status !== 'scheduled') return false;
@@ -508,7 +546,7 @@ export function DashboardClient({
         userWhatsApp={whatsAppNumber}
         currentUserId={currentUserId}
         trips={trips}
-        bookings={bookings}
+        bookings={allSeats}
         activeTripId={activeTripId}
         onSelectTrip={(tripId) => {
           setActiveTripId(tripId);

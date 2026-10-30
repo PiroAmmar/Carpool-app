@@ -12,6 +12,7 @@ import { PaymentMethodModal, type PaymentMethod } from '@/components/PaymentMeth
 import { LocationBadge } from '@/components/LocationBadge';
 import { PullToRefresh } from '@/components/PullToRefresh';
 import { categoryOf } from '@/lib/tripCategory';
+import { fareFor } from '@/lib/payments';
 import type { Trip, Booking, Route } from '@/types';
 import type { ApprovalSubmission } from '@/types';
 
@@ -334,10 +335,6 @@ export function AdminClient({
 
   const paymentsTripIds = useMemo(() => new Set(paymentsTrips.map((t) => t.id)), [paymentsTrips]);
 
-  function fareFor(b: Booking, trip?: Trip | null): number {
-    return b.rate_applied ?? trip?.rate ?? globalRate ?? 0;
-  }
-
   const paymentStats = useMemo(() => {
     const tripById = new Map(trips.map((t) => [t.id, t]));
     const relevant = bookings.filter((b) => b.status === 'approved' && paymentsTripIds.has(b.trip_id));
@@ -347,7 +344,7 @@ export function AdminClient({
     let onlineAmount = 0, cashAmount = 0, onlineCount = 0, cashCount = 0;
 
     for (const b of relevant) {
-      const amt = fareFor(b, tripById.get(b.trip_id));
+      const amt = fareFor(b, tripById.get(b.trip_id), globalRate);
       if (b.payment_status === 'paid') {
         paidAmount += amt; paidCount++;
         if (b.payment_method === 'online') { onlineAmount += amt; onlineCount++; }
@@ -374,7 +371,7 @@ export function AdminClient({
       .map((b) => {
         const trip = paymentStats.tripById.get(b.trip_id);
         const user = users.find((u) => u.id === b.user_id);
-        return { booking: b, trip, user, amount: fareFor(b, trip) };
+        return { booking: b, trip, user, amount: fareFor(b, trip, globalRate) };
       })
       .sort((a, b) => (a.booking.created_at < b.booking.created_at ? -1 : 1));
   }, [paymentStats, users]);
@@ -603,7 +600,7 @@ export function AdminClient({
     if (next === 'paid') {
       const trip = trips.find((t) => t.id === target.trip_id);
       setPaymentMethodModalRows([
-        { bookingId: target.id, passengerName: passengerNameFor(target.user_id), amount: fareFor(target, trip) },
+        { bookingId: target.id, passengerName: passengerNameFor(target.user_id), amount: fareFor(target, trip, globalRate) },
       ]);
       return;
     }
@@ -636,7 +633,7 @@ export function AdminClient({
       targets.map((b) => ({
         bookingId: b.id,
         passengerName: passengerNameFor(b.user_id),
-        amount: fareFor(b, trip),
+        amount: fareFor(b, trip, globalRate),
       }))
     );
   }
@@ -1721,7 +1718,7 @@ export function AdminClient({
                 const paid = tripBookings.filter((b) => b.payment_status === 'paid');
                 const pending = tripBookings.filter((b) => b.payment_status === 'pending');
                 const waived = tripBookings.filter((b) => b.payment_status === 'waived');
-                const pendingAmt = pending.reduce((sum, b) => sum + fareFor(b, t), 0);
+                const pendingAmt = pending.reduce((sum, b) => sum + fareFor(b, t, globalRate), 0);
 
                 return (
                   <div key={t.id} className="bezel-shell">

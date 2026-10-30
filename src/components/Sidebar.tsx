@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client';
 import { motion, AnimatePresence } from 'framer-motion';
 import { WhatsAppModal } from '@/components/WhatsAppModal';
 import { PushToggle } from '@/app/PushToggle';
-import type { Trip, Booking } from '@/types';
+import type { Trip, SeatBooking } from '@/types';
 import { categoryOf, CATEGORY_LABEL, type TripCategory } from '@/lib/tripCategory';
 import { saveUserWhatsApp } from '@/lib/userProfile';
 
@@ -41,7 +41,7 @@ interface SidebarProps {
   userWhatsApp?: string | null;
   currentUserId?: string;
   trips: Trip[];
-  bookings?: Booking[];
+  bookings?: SeatBooking[];
   activeTripId: string | null; // UUID
   onSelectTrip?: (tripId: string) => void;
   isAdmin?: boolean;
@@ -50,7 +50,7 @@ interface SidebarProps {
 
 function getTripBadge(
   trip: Trip,
-  bookings: Booking[] = [],
+  bookings: SeatBooking[] = [],
   currentUserId?: string,
   isAdmin?: boolean
 ) {
@@ -359,6 +359,19 @@ export function Sidebar({
             <span className="text-[10px] uppercase font-bold underline opacity-80 flex-shrink-0 ml-1">
               {whatsappNum ? 'Edit' : '+ Set'}
             </span>
+          </button>
+        )}
+
+        {!isAdmin && (
+          <button
+            onClick={() => {
+              setIsOpen(false);
+              router.push('/dashboard/trips');
+            }}
+            className="w-full flex items-center justify-between rounded-lg border border-chrome/20 bg-chrome/5 px-3 py-2 text-xs text-chrome hover:bg-chrome/10 transition-colors font-mono"
+          >
+            <span className="truncate">My Trips &amp; Payments</span>
+            <span className="text-[10px] uppercase font-bold opacity-80 flex-shrink-0 ml-1">View →</span>
           </button>
         )}
       </div>

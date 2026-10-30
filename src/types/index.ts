@@ -26,6 +26,10 @@ export interface Booking {
   created_at: string;
 }
 
+// Row of public.seat_occupancy — the only view of other passengers'
+// bookings a passenger gets (no payment or location data).
+export type SeatBooking = Pick<Booking, 'id' | 'trip_id' | 'user_id' | 'seat_number' | 'status' | 'created_at'>;
+
 export interface Route {
   id: string;
   name: string;

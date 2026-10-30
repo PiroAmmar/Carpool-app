@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { BaseModal } from './BaseModal';
 import { LocationBadge } from './LocationBadge';
 import { categoryOf } from '@/lib/tripCategory';
+import { fareFor } from '@/lib/payments';
 import type { Trip, Booking, Route } from '@/types';
 
 interface PassengerDetailsModalProps {
@@ -55,14 +56,8 @@ export function PassengerDetailsModal({
   const waived = approved.filter((b) => b.payment_status === 'waived');
   const pending = approved.filter((b) => b.payment_status === 'pending');
 
-  // Historical totals read the rate frozen on the booking at creation
-  // time — never recomputed live, so editing custom_rate later can't
-  // rewrite a passenger's past paid/waived/pending amounts.
-  const rateFor = (b: Booking) => {
-    if (b.rate_applied !== null && b.rate_applied !== undefined) return b.rate_applied;
-    const trip = trips.find((t) => t.id === b.trip_id);
-    return trip?.rate ?? globalRate ?? 0;
-  };
+  const rateFor = (b: Booking) =>
+    fareFor(b, trips.find((t) => t.id === b.trip_id), globalRate);
 
   const sumRate = (list: Booking[]) =>
     list.reduce((sum, b) => sum + rateFor(b), 0);
