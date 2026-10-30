@@ -1,24 +1,30 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { TripsClient } from './TripsClient';
-import type { Trip, Booking, Route } from '@/types';
+import { splitBookingsAndTrips, type BookingWithTrip } from '@/lib/payments';
+import type { Route } from '@/types';
 
 export default async function MyTripsPage() {
   const supabase = await createClient();
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect('/login');
+  // Session was already validated by the proxy; getClaims verifies the JWT
+  // locally where possible instead of another round trip to the auth server.
+  const { data: claimsData } = await supabase.auth.getClaims();
+  const userId = claimsData?.claims?.sub;
+  if (!userId) redirect('/login');
 
+  // One parallel batch. Trips are embedded in the bookings query so every
+  // trip the passenger ever booked comes back regardless of status or date.
   const [bookingsRes, routesRes, settingsRes] = await Promise.all([
     supabase
       .from('bookings')
-      .select('*')
-      .eq('user_id', user.id)
+      .select('*, trips(*)')
+      .eq('user_id', userId)
       .order('created_at', { ascending: false }),
 
     supabase
       .from('routes')
-      .select('*'),
+      .select('id, name, stops, is_preset'),
 
     supabase
       .from('settings')
@@ -27,22 +33,15 @@ export default async function MyTripsPage() {
       .maybeSingle(),
   ]);
 
-  const bookings = (bookingsRes.data as Booking[]) ?? [];
-  const tripIds = [...new Set(bookings.map((b) => b.trip_id))];
-
-  // Every trip the passenger ever booked, regardless of status or date —
-  // the main dashboard only loads upcoming scheduled ones.
-  const { data: tripsData } = tripIds.length
-    ? await supabase.from('trips').select('*').in('id', tripIds)
-    : { data: [] };
+  const { bookings, trips } = splitBookingsAndTrips((bookingsRes.data as BookingWithTrip[]) ?? []);
 
   return (
     <TripsClient
       initialBookings={bookings}
-      initialTrips={(tripsData as Trip[]) ?? []}
+      initialTrips={trips}
       routes={(routesRes.data as Route[]) ?? []}
       globalRate={settingsRes.data?.rate ?? null}
-      currentUserId={user.id}
+      currentUserId={userId}
     />
   );
 }

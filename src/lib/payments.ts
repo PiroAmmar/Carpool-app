@@ -16,3 +16,15 @@ export function isTripUpcoming(trip: Trip, now = new Date()): boolean {
   const start = new Date(`${trip.trip_date}T${trip.trip_time}`);
   return Number.isNaN(start.getTime()) ? false : start > now;
 }
+
+export type BookingWithTrip = Booking & { trips: Trip | null };
+
+/** Unpacks a `bookings.select('*, trips(*)')` result into flat lists. */
+export function splitBookingsAndTrips(rows: BookingWithTrip[]): { bookings: Booking[]; trips: Trip[] } {
+  const tripById = new Map<string, Trip>();
+  const bookings = rows.map(({ trips, ...b }) => {
+    if (trips) tripById.set(trips.id, trips);
+    return b as Booking;
+  });
+  return { bookings, trips: [...tripById.values()] };
+}

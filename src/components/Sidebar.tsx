@@ -3,6 +3,7 @@
 import { startPolling } from '@/lib/poll';
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { motion, AnimatePresence } from 'framer-motion';
 import { WhatsAppModal } from '@/components/WhatsAppModal';
@@ -363,11 +364,10 @@ export function Sidebar({
         )}
 
         {!isAdmin && (
-          <button
-            onClick={() => {
-              setIsOpen(false);
-              router.push('/dashboard/trips');
-            }}
+          <Link
+            href="/dashboard/trips"
+            prefetch
+            onClick={() => setIsOpen(false)}
             className="group w-full flex items-center gap-2.5 rounded-xl px-1 py-1.5 text-left hover:bg-white/[0.03] transition-colors"
           >
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-chrome/10 border border-chrome/20 text-chrome flex-shrink-0">
@@ -387,7 +387,7 @@ export function Sidebar({
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-warmwhite/30 group-hover:text-warmwhite/70 group-hover:translate-x-0.5 transition-all flex-shrink-0" aria-hidden="true">
               <path d="M9 6l6 6-6 6" />
             </svg>
-          </button>
+          </Link>
         )}
       </div>
 

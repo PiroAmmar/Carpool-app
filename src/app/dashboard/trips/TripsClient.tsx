@@ -8,7 +8,7 @@ import { createClient } from '@/lib/supabase/client';
 import { PullToRefresh } from '@/components/PullToRefresh';
 import { LocationBadge } from '@/components/LocationBadge';
 import { categoryOf, CATEGORY_LABEL } from '@/lib/tripCategory';
-import { fareFor, isTripUpcoming } from '@/lib/payments';
+import { fareFor, isTripUpcoming, splitBookingsAndTrips, type BookingWithTrip } from '@/lib/payments';
 import type { Trip, Booking, Route } from '@/types';
 
 interface TripsClientProps {
@@ -87,21 +87,15 @@ export function TripsClient({
   /* ── Sync: own bookings + the trips they belong to ──────────────── */
   useEffect(() => {
     const fetchLatest = async () => {
-      const { data: bData } = await supabase
+      const { data } = await supabase
         .from('bookings')
-        .select('*')
+        .select('*, trips(*)')
         .eq('user_id', currentUserId)
         .order('created_at', { ascending: false });
-      if (!bData) return;
-      setBookings(bData as Booking[]);
-
-      const tripIds = [...new Set((bData as Booking[]).map((b) => b.trip_id))];
-      if (tripIds.length === 0) {
-        setTrips([]);
-        return;
-      }
-      const { data: tData } = await supabase.from('trips').select('*').in('id', tripIds);
-      if (tData) setTrips(tData as Trip[]);
+      if (!data) return;
+      const next = splitBookingsAndTrips(data as BookingWithTrip[]);
+      setBookings(next.bookings);
+      setTrips(next.trips);
     };
 
     refreshRef.current = fetchLatest;
