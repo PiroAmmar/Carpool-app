@@ -368,10 +368,25 @@ export function Sidebar({
               setIsOpen(false);
               router.push('/dashboard/trips');
             }}
-            className="w-full flex items-center justify-between rounded-lg border border-chrome/20 bg-chrome/5 px-3 py-2 text-xs text-chrome hover:bg-chrome/10 transition-colors font-mono"
+            className="group w-full flex items-center gap-2.5 rounded-xl px-1 py-1.5 text-left hover:bg-white/[0.03] transition-colors"
           >
-            <span className="truncate">My Trips &amp; Payments</span>
-            <span className="text-[10px] uppercase font-bold opacity-80 flex-shrink-0 ml-1">View →</span>
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-chrome/10 border border-chrome/20 text-chrome flex-shrink-0">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true">
+                <path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3z" />
+                <path d="M9 8h6M9 12h6M9 16h3" />
+              </svg>
+            </span>
+            <span className="flex-1 min-w-0">
+              <span className="block text-sm font-bold text-warmwhite tracking-tight leading-none truncate">
+                My Trips &amp; Payments
+              </span>
+              <span className="block mt-1 text-[11px] text-warmwhite/40 font-mono truncate">
+                Balance &amp; ride history
+              </span>
+            </span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-warmwhite/30 group-hover:text-warmwhite/70 group-hover:translate-x-0.5 transition-all flex-shrink-0" aria-hidden="true">
+              <path d="M9 6l6 6-6 6" />
+            </svg>
           </button>
         )}
       </div>
