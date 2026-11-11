@@ -1,6 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useSyncExternalStore } from 'react';
+
+// false during SSR and hydration, true once running on the client.
+const noopSubscribe = () => () => {};
+function useHasMounted() {
+  return useSyncExternalStore(noopSubscribe, () => true, () => false);
+}
 
 function WhatsAppIcon() {
   return (
@@ -30,11 +36,7 @@ function CheckIcon() {
 export function ContactCard() {
   const acct = '99910110473142';
   const [copied, setCopied] = useState(false);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const mounted = useHasMounted();
 
   function handleCopy() {
     navigator.clipboard?.writeText(acct).then(() => {

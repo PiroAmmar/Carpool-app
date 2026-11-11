@@ -253,10 +253,6 @@ export function AdminClient({
     () => sortTripsCustom(searchedTrips.filter((t) => t.status === 'closed')),
     [searchedTrips]
   );
-  const cancelledTrips = useMemo(
-    () => sortTripsCustom(searchedTrips.filter((t) => t.status === 'cancelled')),
-    [searchedTrips]
-  );
 
   const cap = (arr: Trip[]) => (tripSearchQuery ? arr : arr.slice(0, TRIP_GROUP_CAP));
   const overflow = (arr: Trip[]) => (tripSearchQuery ? 0 : Math.max(0, arr.length - TRIP_GROUP_CAP));
@@ -374,7 +370,7 @@ export function AdminClient({
         return { booking: b, trip, user, amount: fareFor(b, trip, globalRate) };
       })
       .sort((a, b) => (a.booking.created_at < b.booking.created_at ? -1 : 1));
-  }, [paymentStats, users]);
+  }, [paymentStats, users, globalRate]);
 
   const routePresets = useMemo(
     () => routes.filter((r) => r.is_preset),

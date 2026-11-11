@@ -79,7 +79,7 @@ It replaces chaotic, high-friction WhatsApp message threads with a centralized t
 - **Frictionless WhatsApp Link**: Quick-action modal with direct `wa.me` deep links to the admin's personal number for immediate ad-hoc communication.
 
 ### 📲 Progressive Web App (PWA)
-- Full service worker caching (`sw.js`), web app manifest (`manifest.json`), custom iOS Safari / Android install prompt banner (`InstallPrompt.tsx`), and automated monochrome notification badge generation (`scripts/generate_badge.js`).
+- Full service worker caching (`sw.js`), web app manifest (`manifest.json`), custom iOS Safari / Android install prompt banner (`InstallPrompt.tsx`), and automated monochrome notification badge generation (`scripts/generate_badge.mjs`).
 
 ---
 
@@ -161,7 +161,7 @@ carpool/
 │   ├── manifest.json           # Progressive Web App manifest
 │   └── sw.js                   # Service Worker for push notifications & caching
 ├── scripts/
-│   └── generate_badge.js       # Script to generate Android status bar badge icon
+│   └── generate_badge.mjs      # Script to generate Android status bar badge icon
 ├── src/
 │   ├── app/                    # Next.js App Router root
 │   │   ├── admin/              # Admin dashboard view & tabbed control center
