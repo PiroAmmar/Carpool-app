@@ -2,6 +2,8 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { DashboardClient } from './DashboardClient';
 import { isAdminEmail } from '@/lib/admin';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { canBookMultipleSeats } from '@/lib/bookings/multiSeat';
 import type { Trip, Booking, Route, SeatBooking } from '@/types';
 
 export default async function DashboardPage(props: {
@@ -64,6 +66,9 @@ export default async function DashboardPage(props: {
     props.searchParams,
   ]);
 
+  // Only passenger view needs it; admins are redirected below otherwise.
+  const canMultiBook = await canBookMultipleSeats(createAdminClient(), user.email);
+
   const isAdmin = isEnvAdmin || userProfileRes.data?.role === 'admin';
   const queryView = resolvedSearchParams?.view as string | undefined;
 
@@ -105,6 +110,7 @@ export default async function DashboardPage(props: {
       userCustomRate={userCustomRate}
       isAdmin={isAdmin}
       isBlacklisted={isBlacklisted}
+      canMultiBook={canMultiBook}
     />
   );
 }

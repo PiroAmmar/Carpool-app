@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "generate:badge": "node scripts/generate_badge.js"
+    "generate:badge": "node scripts/generate_badge.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",

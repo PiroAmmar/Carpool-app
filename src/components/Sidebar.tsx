@@ -208,7 +208,6 @@ export function Sidebar({
   const [isOpen, setIsOpen] = useState(false);
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
   const [whatsappNum, setWhatsappNum] = useState<string | null>(userWhatsApp || null);
-  const [prevWhatsApp, setPrevWhatsApp] = useState(userWhatsApp);
 
   const onUpdateWhatsAppRef = useRef(onUpdateWhatsApp);
   useEffect(() => {
