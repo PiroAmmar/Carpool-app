@@ -3,6 +3,7 @@ import { getAuthenticatedUser } from "@/lib/supabase/serverAuth";
 import { resolveBookingRate } from "@/lib/rates";
 import { isValidBookingPayload } from "@/lib/bookings/validation";
 import { rateLimit } from "@/lib/rateLimit";
+import { canBookMultipleSeats } from "@/lib/bookings/multiSeat";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
@@ -73,8 +74,11 @@ export async function POST(request: Request) {
       }
     }
 
-    // Delete any old/rejected bookings for this user on this trip and insert fresh
-    await client.from("bookings").delete().eq("trip_id", tripId).eq("user_id", userId);
+    // Delete any old/rejected bookings for this user on this trip and insert fresh.
+    // Multi-seat bookers hold several seats per trip — never wipe the others.
+    if (!(await canBookMultipleSeats(client, user.email))) {
+      await client.from("bookings").delete().eq("trip_id", tripId).eq("user_id", userId);
+    }
 
     const { data: newBooking, error: insertErr } = await client
       .from("bookings")

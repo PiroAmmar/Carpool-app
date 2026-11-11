@@ -32,6 +32,8 @@ interface DashboardClientProps {
   userCustomRate?: number | null;
   isAdmin?: boolean;
   isBlacklisted?: boolean;
+  /** Account may book several seats on one trip (on behalf of others). */
+  canMultiBook?: boolean;
 }
 
 function formatTripDateTime(date: string, time: string): string {
@@ -82,6 +84,7 @@ export function DashboardClient({
   userCustomRate: initialUserCustomRate,
   isAdmin,
   isBlacklisted,
+  canMultiBook = false,
 }: DashboardClientProps) {
   const [trips, setTrips] = useState<Trip[]>(initialTrips);
   const [routes] = useState<Route[]>(initialRoutes);
@@ -363,8 +366,17 @@ export function DashboardClient({
 
   const canBook = useMemo(() => {
     if (!trip || trip.status !== 'scheduled') return false;
+    if (canMultiBook) return true;
     return !myBooking || myBooking.status === 'rejected';
-  }, [trip, myBooking]);
+  }, [trip, myBooking, canMultiBook]);
+
+  // Multi-seat bookers: every seat they hold on this trip, by seat number.
+  const myTripBookings = useMemo(() => {
+    if (!trip || !canMultiBook) return [];
+    return bookings
+      .filter((b) => b.trip_id === trip.id && b.status !== 'rejected')
+      .sort((a, b) => a.seat_number - b.seat_number);
+  }, [bookings, trip, canMultiBook]);
 
   const tripRate = (trip as (Trip & { rate?: number }) | null)?.rate ?? null;
   // Priority: Passenger Custom Rate > Per-Trip Override Rate > Global Default Rate
@@ -393,7 +405,11 @@ export function DashboardClient({
       created_at: new Date().toISOString(),
     };
 
-    setBookings((prev) => [optimistic, ...prev.filter((b) => b.id !== myBooking?.id)]);
+    setBookings((prev) =>
+      canMultiBook
+        ? [optimistic, ...prev]
+        : [optimistic, ...prev.filter((b) => b.id !== myBooking?.id)]
+    );
     setSelectedSeat(null);
     setBookingError(null);
 
@@ -410,7 +426,8 @@ export function DashboardClient({
     };
 
     // If rebooking over a rejected booking, call dedicated API route
-    if (myBooking && myBooking.status === 'rejected') {
+    // Multi-seat bookers always add a new booking; their rejected rows stay as history.
+    if (!canMultiBook && myBooking && myBooking.status === 'rejected') {
       try {
         const res = await fetch('/api/bookings/rebook', {
           method: 'POST',
@@ -591,6 +608,29 @@ export function DashboardClient({
                 </p>
               </div>
             </motion.div>
+          )}
+
+          {/* ── Multi-seat booker: all seats held on this trip ─────── */}
+          {canMultiBook && myTripBookings.length > 1 && (
+            <div className="mb-4 rounded-xl border border-chrome/15 bg-chrome/5 p-4">
+              <p className="font-mono text-[10px] tracking-widest text-warmwhite/50 uppercase font-bold mb-2">
+                Your seats on this trip · {myTripBookings.length}
+              </p>
+              <ul className="flex flex-col gap-1.5">
+                {myTripBookings.map((b) => (
+                  <li key={b.id} className="flex items-center justify-between text-sm text-warmwhite/80">
+                    <span>Seat {b.seat_number}</span>
+                    <span
+                      className={`font-mono text-[10px] tracking-widest uppercase font-bold ${
+                        b.status === 'approved' ? 'text-emerald-400' : 'text-amber-400'
+                      }`}
+                    >
+                      {b.status}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
 
           {/* ── Approval notification card ─────────────────────────── */}
@@ -848,7 +888,11 @@ export function DashboardClient({
                     transition={{ duration: 0.16, ease: [0.23, 1, 0.32, 1] }}
                     className="group w-full flex items-center justify-between rounded-xl pl-5 pr-2 py-2 text-sm font-bold tracking-wide bg-accent-red/90 text-white hover:bg-accent-red shadow-lg shadow-accent-red/20 uppercase"
                   >
-                    {myBooking?.status === 'rejected' ? 'Re-book a seat' : 'Book a seat'}
+                    {canMultiBook && myTripBookings.length > 0
+                      ? 'Book another seat'
+                      : myBooking?.status === 'rejected'
+                        ? 'Re-book a seat'
+                        : 'Book a seat'}
                     <span className="flex h-9 w-9 items-center justify-center rounded-full bg-black/15 transition-transform duration-160 ease-out group-hover:translate-x-0.5 group-active:scale-95">
                       →
                     </span>
