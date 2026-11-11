@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 import { isAdminEmail } from "@/lib/admin";
 
@@ -41,7 +42,10 @@ export async function GET(request: Request) {
   // Upsert the user into the public.users table.
   // This is required because the bookings table has a foreign key to public.users.
   const fullName = user.user_metadata?.full_name ?? user.user_metadata?.name ?? null;
-  const { error: upsertError } = await supabase
+  // Service-role client: role is decided here on the server, and the
+  // users_protect_privileged_columns trigger (migration 11) blocks
+  // passenger sessions from writing role/email themselves.
+  const { error: upsertError } = await createAdminClient()
     .from('users')
     .upsert({
       id: user.id,
